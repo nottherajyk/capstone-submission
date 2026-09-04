@@ -8,8 +8,17 @@ hf:
   token_env_var: "HF_TOKEN"
   dataset_repo: "FlyRank/internship-warehouse"
 
+warehouse:
+  root_path: "hf://datasets/FlyRank/internship-warehouse"
+  sources:
+    daily_performance: "hf://datasets/FlyRank/internship-warehouse/fact_content_daily_performance/**/*.parquet"
+    dim_clients: "hf://datasets/FlyRank/internship-warehouse/dim_clients.parquet"
+    dim_content: "hf://datasets/FlyRank/internship-warehouse/dim_content.parquet"
+    query_90d: "hf://datasets/FlyRank/internship-warehouse/fact_content_query_90d.parquet"
+    sample: "hf://datasets/FlyRank/internship-warehouse/fact_content_daily_performance_sample.parquet"
+
 data:
-  # Source can be local file path or DuckDB HF query
+  # Local path is optional local fixture; default capstone mode is REMOTE WAREHOUSE
   raw_path: "data/raw/content_refresh_anonymized.csv"
   processed_dir: "outputs/data"
   sample_size_limit: null  # null means process all records

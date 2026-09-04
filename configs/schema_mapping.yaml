@@ -3,8 +3,18 @@
 
 dataset:
   name: "FlyRank Applied Search Intelligence"
+  repo: "FlyRank/internship-warehouse"
+  root_path: "hf://datasets/FlyRank/internship-warehouse"
+  release: "v20260703"
   inspection_status: "MANUALLY_AUDITED"
   notes: "Audited schema mapping for content performance records"
+
+warehouse_sources:
+  daily_performance: "hf://datasets/FlyRank/internship-warehouse/fact_content_daily_performance/**/*.parquet"
+  dim_clients: "hf://datasets/FlyRank/internship-warehouse/dim_clients.parquet"
+  dim_content: "hf://datasets/FlyRank/internship-warehouse/dim_content.parquet"
+  query_90d: "hf://datasets/FlyRank/internship-warehouse/fact_content_query_90d.parquet"
+  sample: "hf://datasets/FlyRank/internship-warehouse/fact_content_daily_performance_sample.parquet"
 
 identifiers:
   content_id:

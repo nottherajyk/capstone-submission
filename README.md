@@ -151,9 +151,17 @@ python scripts/validate_repo.py
 
 ---
 
-## 6. Hugging Face Authentication & Local Setup
+## 6. Hugging Face Authentication & Warehouse Architecture
 
 The FlyRank warehouse dataset hosted at `FlyRank/internship-warehouse` is gated. Access requires a valid Hugging Face User Access Token (`HF_TOKEN`). Authentication is performed dynamically using DuckDB's Secrets Manager (`CREATE SECRET (TYPE HUGGINGFACE)`) over the `httpfs` extension without hardcoded credentials or arbitrary header settings.
+
+### Warehouse Objects & Paths
+The warehouse objects are accessed directly at the repository root via `hf://`:
+- **`daily_performance`**: `hf://datasets/FlyRank/internship-warehouse/fact_content_daily_performance/**/*.parquet` (Month-partitioned primary daily performance fact table)
+- **`dim_clients`**: `hf://datasets/FlyRank/internship-warehouse/dim_clients.parquet` (Client metadata dimension table)
+- **`dim_content`**: `hf://datasets/FlyRank/internship-warehouse/dim_content.parquet` (Content metadata dimension table)
+- **`query_90d`**: `hf://datasets/FlyRank/internship-warehouse/fact_content_query_90d.parquet` (90-day search query traffic)
+- **`sample`**: `hf://datasets/FlyRank/internship-warehouse/fact_content_daily_performance_sample.parquet` (Latest full-month sample for development & schema discovery; NOT the complete warehouse)
 
 > **Security Rule:** Never commit your `HF_TOKEN` or `.env` file to version control. The token must only be supplied via your local environment.
 
@@ -189,7 +197,7 @@ Verify your configuration by running the dataset inspection script:
 ```bash
 python scripts/inspect_dataset.py
 ```
-If configured correctly, the script detects `HF_TOKEN`, connects to the FlyRank warehouse, and displays non-sensitive schema metadata.
+If configured correctly, the script detects `HF_TOKEN`, creates the temporary Hugging Face secret in DuckDB, queries the root warehouse paths, and displays non-sensitive schema metadata.
 
 ---
 

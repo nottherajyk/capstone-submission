@@ -1,12 +1,18 @@
 """
-Tests for Hugging Face authentication, dotenv handling, DuckDB Secrets Manager integration, and secret scanning.
+Tests for Hugging Face authentication, dotenv handling, DuckDB Secrets Manager integration,
+warehouse path resolution, and secret scanning.
 Uses fake tokens ONLY for unit test assertions.
 """
 
 import os
 import pytest
 
-from src.data import classify_warehouse_error, create_duckdb_connection_with_hf_auth, get_hf_token
+from src.data import (
+    classify_warehouse_error,
+    create_duckdb_connection_with_hf_auth,
+    get_hf_token,
+    get_warehouse_sources,
+)
 from src.privacy import assert_public_safe, scan_for_privacy_violations
 
 
@@ -77,3 +83,37 @@ def test_secret_scanner_allows_placeholder():
     token_violations = [v for v in violations if v["type"] == "SECRET_TOKEN"]
     assert len(token_violations) == 0
     assert_public_safe(safe_env_example)
+
+
+def test_warehouse_root_path_resolution():
+    """Test 9: Verify root warehouse path and no /data suffix is generated."""
+    repo_id = "FlyRank/internship-warehouse"
+    sources = get_warehouse_sources(repo_id)
+
+    assert sources["root"] == "hf://datasets/FlyRank/internship-warehouse"
+    assert "/data" not in sources["root"]
+    assert sources["dim_clients"] == "hf://datasets/FlyRank/internship-warehouse/dim_clients.parquet"
+    assert sources["dim_content"] == "hf://datasets/FlyRank/internship-warehouse/dim_content.parquet"
+    assert sources["query_90d"] == "hf://datasets/FlyRank/internship-warehouse/fact_content_query_90d.parquet"
+    assert sources["sample"] == "hf://datasets/FlyRank/internship-warehouse/fact_content_daily_performance_sample.parquet"
+    assert sources["daily_performance"] == "hf://datasets/FlyRank/internship-warehouse/fact_content_daily_performance/**/*.parquet"
+
+
+def test_regression_no_data_subfolder_suffix():
+    """Regression Test: Ensure hf://datasets/FlyRank/internship-warehouse does NOT become .../data."""
+    sources = get_warehouse_sources("FlyRank/internship-warehouse")
+    for key, path in sources.items():
+        assert not path.endswith("/data")
+        assert "/internship-warehouse/data/" not in path
+
+
+def test_error_classification_distinguishes_error_types():
+    """Test 10: Error classifier distinguishes 404, 401, network, and missing catalog errors."""
+    err_404 = classify_warehouse_error(Exception("HTTP GET error (HTTP 404)"))
+    assert "[PATH/SCHEMA NOT FOUND]" in str(err_404)
+
+    err_401 = classify_warehouse_error(Exception("401 Unauthorized access"))
+    assert "[ACCESS DENIED]" in str(err_401)
+
+    err_net = classify_warehouse_error(Exception("Could not resolve host huggingface.co"))
+    assert "[NETWORK ERROR]" in str(err_net)

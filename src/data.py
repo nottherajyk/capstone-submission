@@ -63,12 +63,28 @@ def classify_warehouse_error(e: Exception, token: Optional[str] = None) -> Excep
             f"Please verify your HF_TOKEN is valid and you have accepted data use terms at https://huggingface.co/datasets/FlyRank/internship-warehouse.\n"
             f"Details: {err_raw}"
         )
-    elif "could not resolve host" in err_lower or "connection" in err_lower or "network" in err_lower or "http" in err_lower:
-        return RuntimeError(f"[NETWORK ERROR]: Failed to connect to Hugging Face warehouse. Details: {err_raw}")
-    elif "catalog error" in err_lower or "file not found" in err_lower or "no matching files" in err_lower:
+    elif "404" in err_lower or "not found" in err_lower or "catalog error" in err_lower or "no matching files" in err_lower:
         return RuntimeError(f"[PATH/SCHEMA NOT FOUND]: Target warehouse dataset file was not found on Hugging Face. Details: {err_raw}")
+    elif "could not resolve host" in err_lower or "connection" in err_lower or "network" in err_lower or "http get error" in err_lower or "http" in err_lower:
+        return RuntimeError(f"[NETWORK ERROR]: Failed to connect to Hugging Face warehouse. Details: {err_raw}")
     else:
         return RuntimeError(f"[DUCKDB WAREHOUSE ERROR]: {err_raw}")
+
+
+def get_warehouse_sources(repo_id: str = "FlyRank/internship-warehouse") -> Dict[str, str]:
+    """
+    Construct official root-level warehouse source paths for Hugging Face integration via DuckDB.
+    Never appends '/data' or assumes a nested subfolder.
+    """
+    root = f"hf://datasets/{repo_id}"
+    return {
+        "root": root,
+        "daily_performance": f"{root}/fact_content_daily_performance/**/*.parquet",
+        "dim_clients": f"{root}/dim_clients.parquet",
+        "dim_content": f"{root}/dim_content.parquet",
+        "query_90d": f"{root}/fact_content_query_90d.parquet",
+        "sample": f"{root}/fact_content_daily_performance_sample.parquet",
+    }
 
 
 def create_duckdb_connection_with_hf_auth(token: Optional[str] = None) -> Any:
@@ -190,10 +206,11 @@ def resolve_canonical_columns(
 def load_dataset(
     path: Optional[str] = None,
     config: Optional[AppConfig] = None,
+    source_mode: str = "REMOTE_WAREHOUSE",
 ) -> Any:
     """
     Load dataset from path or configured default location.
-    Distinguishes local file samples from remote Hugging Face warehouse connections.
+    Distinguishes local file samples (LOCAL_FIXTURE) from remote Hugging Face warehouse connections (REMOTE_WAREHOUSE).
     """
     if pd is None:
         raise ImportError("pandas is required to load dataset. Run: pip install -r requirements.txt")
@@ -201,10 +218,15 @@ def load_dataset(
     if config is None:
         config = load_config()
 
-    target_path = Path(path if path is not None else config.raw_data_path)
+    target_path = Path(path) if path is not None else Path(config.raw_data_path)
 
-    # 1. Local path check
-    if target_path.exists():
+    # 1. Explicit local path provided and exists
+    if path is not None and target_path.exists():
+        if str(target_path).endswith(".parquet"):
+            df = pd.read_parquet(target_path)
+        else:
+            df = pd.read_csv(target_path)
+    elif source_mode == "LOCAL_FIXTURE" and target_path.exists():
         if str(target_path).endswith(".parquet"):
             df = pd.read_parquet(target_path)
         else:
@@ -213,17 +235,18 @@ def load_dataset(
         # 2. Remote Hugging Face Warehouse via DuckDB Secrets Manager
         token = get_hf_token(raise_error=True)
         conn = create_duckdb_connection_with_hf_auth(token)
-        repo_id = config.schema_mapping.get("hf", {}).get("dataset_repo", "FlyRank/internship-warehouse")
-        
-        # Query remote hf:// dataset path
-        hf_query_path = f"hf://datasets/{repo_id}/*.parquet"
+        repo_id = config.schema_mapping.get("dataset", {}).get("repo", "FlyRank/internship-warehouse")
+        sources = get_warehouse_sources(repo_id)
+
+        sample_path = sources["sample"]
+        daily_path = sources["daily_performance"]
+
+        # Try sample file first (latest full-month sample), then full daily performance table
         try:
-            df = conn.execute(f"SELECT * FROM '{hf_query_path}' LIMIT 50000;").df()
+            df = conn.execute(f"SELECT * FROM read_parquet('{sample_path}') LIMIT 50000;").df()
         except Exception as e1:
             try:
-                # Fallback path if files are structured in subfolder
-                hf_query_path_sub = f"hf://datasets/{repo_id}/data/*.parquet"
-                df = conn.execute(f"SELECT * FROM '{hf_query_path_sub}' LIMIT 50000;").df()
+                df = conn.execute(f"SELECT * FROM read_parquet('{daily_path}') LIMIT 50000;").df()
             except Exception as e2:
                 raise classify_warehouse_error(e2, token) from None
 
