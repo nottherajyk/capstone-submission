@@ -222,7 +222,24 @@
     "distinct_grain_combinations": 50000,
     "duplicate_count": 0,
     "grain_holds": true,
-    "notes": "Verified unique at grain client_hash_id \u00d7 content_hash_id \u00d7 report_date"
+    "notes": "Verified unique on 50k sample at grain client_hash_id \u00d7 content_hash_id \u00d7 report_date"
+  },
+  "full_warehouse_grain": {
+    "keys": [
+      "client_hash_id",
+      "content_hash_id",
+      "report_date"
+    ],
+    "source_path": "hf://datasets/FlyRank/internship-warehouse/fact_content_daily_performance/**/*.parquet",
+    "total_rows": 78835655,
+    "distinct_grain_combinations": 78829265,
+    "duplicate_count": 6390,
+    "grain_holds": false,
+    "report_date_range": {
+      "min": "2025-01-27",
+      "max": "2026-06-30"
+    },
+    "notes": "Computed via DuckDB aggregation over full warehouse without loading into pandas"
   },
   "candidate_performance_fields": {
     "impressions": "impressions",

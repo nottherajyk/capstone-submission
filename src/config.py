@@ -85,6 +85,7 @@ class LabelConfig:
     future_horizon_days: int = 28
     min_lookback_impressions: float = 100.0
     min_lookback_clicks: float = 10.0
+    min_lookback_active_days: int = 14
     min_future_active_days: int = 14
     click_deterioration_threshold: float = 0.20
     position_deterioration_threshold: float = 2.0
@@ -92,6 +93,9 @@ class LabelConfig:
         default_factory=lambda: {
             "exclude_zero_traffic": True,
             "exclude_sparse_history": True,
+            "exclude_insufficient_history": True,
+            "exclude_insufficient_future_coverage": True,
+            "exclude_missing_future_coverage": True,
             "exclude_missing_dates": True,
         }
     )
@@ -157,6 +161,7 @@ def load_config(
         future_horizon_days=lbl_cfg.get("future_horizon_days", 28),
         min_lookback_impressions=lbl_cfg.get("min_lookback_impressions", 100.0),
         min_lookback_clicks=lbl_cfg.get("min_lookback_clicks", 10.0),
+        min_lookback_active_days=lbl_cfg.get("min_lookback_active_days", 14),
         min_future_active_days=lbl_cfg.get("min_future_active_days", 14),
         click_deterioration_threshold=lbl_cfg.get("click_deterioration_threshold", 0.20),
         position_deterioration_threshold=lbl_cfg.get("position_deterioration_threshold", 2.0),

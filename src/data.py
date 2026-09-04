@@ -129,6 +129,70 @@ def create_duckdb_connection_with_hf_auth(token: Optional[str] = None) -> Any:
     return conn
 
 
+def check_warehouse_analytical_grain(
+    conn: Any,
+    source_path: Optional[str] = None,
+    grain_keys: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """
+    Perform a full-warehouse analytical grain check using DuckDB aggregation.
+    Does NOT load the full warehouse into pandas.
+
+    Computes:
+    - total rows
+    - distinct grain combinations
+    - duplicate count
+    - report_date range (min and max)
+    """
+    if grain_keys is None:
+        grain_keys = ["client_hash_id", "content_hash_id", "report_date"]
+
+    if source_path is None:
+        sources = get_warehouse_sources()
+        source_path = sources["daily_performance"]
+
+    keys_clause = ", ".join(grain_keys)
+    query = f"""
+    WITH agg AS (
+        SELECT
+            {keys_clause},
+            COUNT(*) AS cnt
+        FROM read_parquet('{source_path}')
+        GROUP BY {keys_clause}
+    )
+    SELECT
+        CAST(SUM(cnt) AS BIGINT) AS total_rows,
+        CAST(COUNT(*) AS BIGINT) AS distinct_grain,
+        CAST(SUM(cnt) - COUNT(*) AS BIGINT) AS duplicate_count,
+        MIN(report_date) AS min_report_date,
+        MAX(report_date) AS max_report_date
+    FROM agg;
+    """
+
+    try:
+        row = conn.execute(query).fetchone()
+    except Exception as e:
+        token = get_hf_token(raise_error=False)
+        raise classify_warehouse_error(e, token) from None
+
+    total_rows = int(row[0]) if row and row[0] is not None else 0
+    distinct_grain = int(row[1]) if row and row[1] is not None else 0
+    dup_count = int(row[2]) if row and row[2] is not None else 0
+
+    return {
+        "grain_keys": grain_keys,
+        "source_path": source_path,
+        "total_rows": total_rows,
+        "distinct_grain_combinations": distinct_grain,
+        "duplicate_count": dup_count,
+        "grain_holds": (dup_count == 0),
+        "report_date_range": {
+            "min": str(row[3]) if row and row[3] is not None else None,
+            "max": str(row[4]) if row and row[4] is not None else None,
+        },
+    }
+
+
 def infer_candidate_identifiers(df: Any) -> Dict[str, Optional[str]]:
     """
     Infer candidate entity identifiers and temporal observation dates from a DataFrame

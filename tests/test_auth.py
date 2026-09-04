@@ -215,3 +215,33 @@ def test_resolve_canonical_columns_preserves_raw_columns():
     assert df_resolved["client_id"].iloc[0] == "cl_hash_abc"
     assert df_resolved["content_id"].iloc[0] == "cnt_hash_xyz"
     assert df_resolved["position"].iloc[0] == 3.5
+
+
+def test_check_warehouse_analytical_grain_duckdb(tmp_path):
+    """Test full warehouse analytical grain check using DuckDB aggregation."""
+    import duckdb
+    from src.data import check_warehouse_analytical_grain
+
+    p_str = str(tmp_path / "test_perf.parquet").replace("\\", "/")
+    conn = duckdb.connect()
+
+    # Create test parquet with 5 rows: 4 unique grain combos, 1 duplicate
+    conn.execute(f"""
+        COPY (
+            SELECT 'c1' AS client_hash_id, 'p1' AS content_hash_id, DATE '2025-02-01' AS report_date
+            UNION ALL SELECT 'c1', 'p2', DATE '2025-02-05'
+            UNION ALL SELECT 'c2', 'p1', DATE '2025-03-01'
+            UNION ALL SELECT 'c3', 'p1', DATE '2025-04-01'
+            UNION ALL SELECT 'c1', 'p1', DATE '2025-02-01'
+        ) TO '{p_str}' (FORMAT PARQUET);
+    """)
+
+    res = check_warehouse_analytical_grain(conn, source_path=p_str)
+
+    assert res["total_rows"] == 5
+    assert res["distinct_grain_combinations"] == 4
+    assert res["duplicate_count"] == 1
+    assert res["grain_holds"] is False
+    assert res["report_date_range"]["min"].startswith("2025-02-01")
+    assert res["report_date_range"]["max"].startswith("2025-04-01")
+    conn.close()

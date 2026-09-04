@@ -73,15 +73,46 @@ def compute_impression_volatility(daily_impressions_std: pd.Series, mean_impress
     return pd.Series(arr, index=daily_impressions_std.index, name="impression_volatility")
 
 
+def validate_feature_temporal_eligibility(
+    df: pd.DataFrame,
+    observation_date: Optional[Any] = None,
+) -> bool:
+    """
+    Verify that features utilize data strictly on or before the observation cutoff date.
+    Raises ValueError if future data or post-cutoff dates enter feature inputs.
+    """
+    if observation_date is not None:
+        date_cols = [c for c in ["report_date", "date", "observation_date"] if c in df.columns]
+        if date_cols:
+            dcol = date_cols[0]
+            cutoff = pd.to_datetime(observation_date)
+            max_date = pd.to_datetime(df[dcol]).max()
+            if max_date > cutoff:
+                raise ValueError(
+                    f"Feature temporal eligibility violation: feature input contains records from {max_date}, "
+                    f"which is strictly after observation date {cutoff}. Features must use data only on or before observation date."
+                )
+    return True
+
+
 def build_feature_table(
     df: pd.DataFrame,
     feature_registry: Optional[List[Dict[str, any]]] = None,
+    observation_date: Optional[Any] = None,
 ) -> Tuple[pd.DataFrame, List[str]]:
     """
     Transform raw search dataset into validated feature matrix.
-    Preserves missing values for position metrics, includes position_available indicator,
+    Ensures features use data only on or before observation date,
+    preserves missing values for position metrics, includes position_available indicator,
     and isolates imputation to model training pipelines.
     """
+    if observation_date is not None:
+        validate_feature_temporal_eligibility(df, observation_date)
+        date_cols = [c for c in ["report_date", "date", "observation_date"] if c in df.columns]
+        if date_cols:
+            dcol = date_cols[0]
+            df = df[pd.to_datetime(df[dcol]) <= pd.to_datetime(observation_date)]
+
     X = pd.DataFrame(index=df.index)
 
     # 1. Base log volume features
