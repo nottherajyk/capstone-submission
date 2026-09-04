@@ -1,13 +1,20 @@
 # Schema Mapping and Feature Provenance Registry
-# Generated via scripts/inspect_dataset.py and audited for leakage status
+# Audited based on actual FlyRank warehouse inspection (FlyRank/internship-warehouse v20260703)
 
 dataset:
   name: "FlyRank Applied Search Intelligence"
   repo: "FlyRank/internship-warehouse"
   root_path: "hf://datasets/FlyRank/internship-warehouse"
   release: "v20260703"
-  inspection_status: "MANUALLY_AUDITED"
-  notes: "Audited schema mapping for content performance records"
+  inspection_status: "AUDITED_AGAINST_REAL_WAREHOUSE"
+  notes: "Authoritative schema mapping for content performance records"
+
+analytical_grain:
+  description: "client_hash_id × content_hash_id × report_date"
+  keys:
+    - "client_hash_id"
+    - "content_hash_id"
+    - "report_date"
 
 warehouse_sources:
   daily_performance: "hf://datasets/FlyRank/internship-warehouse/fact_content_daily_performance/**/*.parquet"
@@ -16,41 +23,109 @@ warehouse_sources:
   query_90d: "hf://datasets/FlyRank/internship-warehouse/fact_content_query_90d.parquet"
   sample: "hf://datasets/FlyRank/internship-warehouse/fact_content_daily_performance_sample.parquet"
 
-identifiers:
-  content_id:
-    canonical: "page_id"
-    aliases: ["url_id", "content_id", "page_hash", "doc_id"]
-    type: "string"
-    is_safe_feature: false
-  client_id:
-    canonical: "client_id"
-    aliases: ["account_id", "tenant_id", "site_id"]
-    type: "string"
-    is_safe_feature: false
-  temporal_date:
-    canonical: "date"
-    aliases: ["observation_date", "period_end", "snapshot_date", "week_end_date"]
-    type: "datetime"
-    is_safe_feature: false
+canonical_roles:
+  client_id: "client_hash_id"
+  content_id: "content_hash_id"
+  report_date: "report_date"
 
-# Raw Performance Metrics expected in source tables
+identifiers:
+  client_id:
+    canonical: "client_hash_id"
+    aliases: ["client_hash_id", "client_id", "account_id", "tenant_id", "site_id"]
+    type: "string"
+    role: "client_identifier"
+    public_safety: "anonymized_hash"
+    is_safe_feature: false
+    notes: "Anonymized client organization identifier hash"
+  content_id:
+    canonical: "content_hash_id"
+    aliases: ["content_hash_id", "content_id", "page_hash", "url_id", "page_id", "doc_id"]
+    type: "string"
+    role: "content_identifier"
+    public_safety: "anonymized_hash"
+    is_safe_feature: false
+    notes: "Anonymized content/URL identifier hash"
+  report_date:
+    canonical: "report_date"
+    aliases: ["report_date", "date", "observation_date", "period_end", "snapshot_date", "week_end_date"]
+    type: "datetime"
+    role: "temporal_observation_field"
+    is_safe_feature: false
+    notes: "Temporal observation timestamp for daily performance observation"
+
+# Raw Performance Metrics expected in source tables & missingness semantics
 raw_metrics:
   clicks:
     canonical: "clicks"
-    aliases: ["organic_clicks", "gsc_clicks", "click_count"]
+    aliases: ["clicks", "organic_clicks", "gsc_clicks", "click_count"]
     type: "float"
+    role: "performance_metric"
+    missingness_treatment: "zero_impute"
+    notes: "Daily organic click volume from GSC; missing implies 0 clicks"
   impressions:
     canonical: "impressions"
-    aliases: ["organic_impressions", "gsc_impressions", "impression_count"]
+    aliases: ["impressions", "organic_impressions", "gsc_impressions", "impression_count"]
     type: "float"
-  ctr:
-    canonical: "ctr"
-    aliases: ["click_through_rate", "avg_ctr"]
-    type: "float"
+    role: "performance_metric"
+    missingness_treatment: "zero_impute"
+    notes: "Daily organic impressions from GSC; missing implies 0 impressions"
   position:
-    canonical: "position"
-    aliases: ["avg_position", "average_position", "rank"]
+    canonical: "gsc_avg_position"
+    aliases: ["gsc_avg_position", "avg_position", "average_position", "position", "rank"]
     type: "float"
+    role: "performance_metric"
+    missingness_treatment: "preserve_or_default_max_rank"
+    notes: "Observed ~79.75% null in raw warehouse. Null indicates lack of rank tracking or zero impressions, NOT rank 0."
+  gsc_sum_position:
+    canonical: "gsc_sum_position"
+    aliases: ["gsc_sum_position"]
+    type: "float"
+    role: "performance_metric"
+    missingness_treatment: "preserve"
+  ga4_pageviews:
+    canonical: "ga4_pageviews"
+    aliases: ["ga4_pageviews", "pageviews"]
+    type: "float"
+    role: "engagement_metric"
+    missingness_treatment: "structural_absence_flag"
+    notes: "Observed ~20% null due to ga4_data_available=false. Represents structural absence, NOT true zero pageviews."
+  ga4_sessions:
+    canonical: "ga4_sessions"
+    aliases: ["ga4_sessions", "sessions"]
+    type: "float"
+    role: "engagement_metric"
+    missingness_treatment: "structural_absence_flag"
+    notes: "Observed ~20% null due to ga4_data_available=false"
+  ga4_users:
+    canonical: "ga4_users"
+    aliases: ["ga4_users", "users"]
+    type: "float"
+    role: "engagement_metric"
+    missingness_treatment: "structural_absence_flag"
+  ga4_engaged_sessions:
+    canonical: "ga4_engaged_sessions"
+    aliases: ["ga4_engaged_sessions"]
+    type: "float"
+    role: "engagement_metric"
+    missingness_treatment: "structural_absence_flag"
+
+availability_flags:
+  client_has_gsc:
+    canonical: "client_has_gsc"
+    type: "bool"
+    role: "integration_availability_flag"
+  client_has_ga4:
+    canonical: "client_has_ga4"
+    type: "bool"
+    role: "integration_availability_flag"
+  gsc_data_available:
+    canonical: "gsc_data_available"
+    type: "bool"
+    role: "daily_data_availability_flag"
+  ga4_data_available:
+    canonical: "ga4_data_available"
+    type: "bool"
+    role: "daily_data_availability_flag"
 
 # Blocked Precomputed & Target-Derived Fields (MUST NEVER ENTER FEATURE MATRIX)
 blocked_fields:
@@ -110,17 +185,17 @@ features:
 
   - feature_name: "avg_position_lookback"
     source_table: "search_performance"
-    source_columns: ["position"]
+    source_columns: ["position", "gsc_avg_position"]
     observation_time_rule: "Mean search ranking position over [T-28, T]"
     lookback_window: "28d"
     future_dependency: false
     target_dependency: false
     leakage_status: "SAFE"
-    notes: "Average organic ranking position in Google SERPs"
+    notes: "Average organic ranking position in Google SERPs (default 20.0 for unobserved)"
 
   - feature_name: "position_momentum_ratio"
     source_table: "search_performance"
-    source_columns: ["position"]
+    source_columns: ["position", "gsc_avg_position"]
     observation_time_rule: "Mean position [T-14, T] divided by Mean position [T-28, T-15]"
     lookback_window: "28d"
     future_dependency: false
@@ -157,3 +232,13 @@ features:
     target_dependency: false
     leakage_status: "SAFE"
     notes: "Traffic consistency indicator"
+
+  - feature_name: "ga4_available_indicator"
+    source_table: "search_performance"
+    source_columns: ["ga4_data_available", "ga4_pageviews"]
+    observation_time_rule: "Binary indicator for whether GA4 analytics data is available"
+    lookback_window: "28d"
+    future_dependency: false
+    target_dependency: false
+    leakage_status: "SAFE"
+    notes: "Distinguishes structural absence of GA4 data from zero pageviews"

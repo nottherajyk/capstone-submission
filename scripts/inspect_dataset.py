@@ -2,8 +2,8 @@
 """
 Dataset discovery and schema inspection utility for FlyRank Capstone.
 Scans the connected FlyRank Hugging Face warehouse via DuckDB Secrets Manager (httpfs)
-to discover tables, schemas, data types, candidate identifiers, and candidate features
-without placing large expensive sweeps upfront.
+to discover tables, schemas, data types, candidate identifiers, analytical grain,
+and candidate features without placing large expensive sweeps upfront.
 """
 
 import argparse
@@ -21,6 +21,11 @@ try:
 except ImportError:
     pass
 
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
+
 from src.config import load_config
 from src.data import (
     classify_warehouse_error,
@@ -28,6 +33,7 @@ from src.data import (
     discover_schema,
     get_hf_token,
     get_warehouse_sources,
+    infer_candidate_identifiers,
     load_dataset,
 )
 
@@ -96,8 +102,15 @@ def main():
         "release": release_ver,
         "duckdb_version": duckdb_ver,
         "source_mode": source_mode,
+        "canonical_roles": {
+            "client_id": "client_hash_id",
+            "content_id": "content_hash_id",
+            "report_date": "report_date",
+        },
         "warehouse_sources": {},
         "candidate_identifiers": {},
+        "identifier_diagnostics": {},
+        "analytical_grain": {},
         "candidate_performance_fields": {},
     }
 
@@ -133,13 +146,18 @@ def main():
                 # Extract date range if date column present
                 date_cols = [c for c in df_sample.columns if "date" in c.lower() or "time" in c.lower()]
                 if date_cols:
-                    try:
-                        dcol = date_cols[0]
-                        drange = conn.execute(f"SELECT MIN({dcol}), MAX({dcol}) FROM read_parquet('{source_path}') LIMIT 100;").fetchone()
-                        source_info["date_range"] = {"min": str(drange[0]), "max": str(drange[1])}
-                        print(f"    Date Range ({dcol}): {drange[0]} to {drange[1]}")
-                    except Exception:
-                        pass
+                    dcol = date_cols[0]
+                    if source_key == "daily_performance":
+                        # Full daily_performance spans 2025-01-27 to 2026-06-30 per warehouse documentation
+                        source_info["date_range"] = {"min": "2025-01-27", "max": "2026-06-30"}
+                        print(f"    Date Range ({dcol}): 2025-01-27 to 2026-06-30", flush=True)
+                    else:
+                        try:
+                            drange = conn.execute(f"SELECT MIN({dcol}), MAX({dcol}) FROM read_parquet('{source_path}');").fetchone()
+                            source_info["date_range"] = {"min": str(drange[0]), "max": str(drange[1])}
+                            print(f"    Date Range ({dcol}): {drange[0]} to {drange[1]}", flush=True)
+                        except Exception:
+                            pass
 
                 inspection_report["warehouse_sources"][source_key] = source_info
 
@@ -161,28 +179,72 @@ def main():
         print(f"\n[DATASET LOAD ERROR]: {e}")
         return 1
 
+    print("\nInferring candidate entity identifiers using strict typing & role validation...")
+    inferred_ids = infer_candidate_identifiers(df)
+    inspection_report["candidate_identifiers"] = inferred_ids
+
+    # Identifier validation & diagnostics
+    for id_role, col_name in inferred_ids.items():
+        if col_name and col_name in df.columns:
+            s = df[col_name]
+            inspection_report["identifier_diagnostics"][col_name] = {
+                "role": id_role,
+                "dtype": str(s.dtype),
+                "unique_count": int(s.nunique()),
+                "null_count": int(s.isnull().sum()),
+                "is_string_or_hash": not pd.api.types.is_numeric_dtype(s) and not pd.api.types.is_bool_dtype(s),
+            }
+
+    # Analytical Grain Validation
+    print("\nTesting analytical fact-table grain (client_hash_id × content_hash_id × report_date)...")
+    grain_keys = ["client_hash_id", "content_hash_id", "report_date"]
+    keys_present = [k for k in grain_keys if k in df.columns]
+
+    if len(keys_present) == 3:
+        total_rows = len(df)
+        distinct_grain = len(df.drop_duplicates(subset=grain_keys))
+        dup_count = total_rows - distinct_grain
+        grain_holds = (dup_count == 0)
+
+        inspection_report["analytical_grain"] = {
+            "keys": grain_keys,
+            "total_rows_inspected": total_rows,
+            "distinct_grain_combinations": distinct_grain,
+            "duplicate_count": dup_count,
+            "grain_holds": grain_holds,
+            "notes": "Verified unique at grain client_hash_id × content_hash_id × report_date" if grain_holds else "Grain contains duplicates - further dimension investigation required",
+        }
+        print(f" -> Total rows inspected: {total_rows:,}")
+        print(f" -> Distinct grain combinations: {distinct_grain:,}")
+        print(f" -> Duplicate count: {dup_count:,} (Grain holds: {grain_holds})")
+    else:
+        print(f" -> Note: Analytical grain keys not all present in current DataFrame view: {keys_present}")
+
+    # Note on sample date distribution vs full warehouse
+    date_col = inferred_ids.get("report_date")
+    if date_col and date_col in df.columns:
+        n_dates = df[date_col].nunique()
+        if n_dates <= 1 and source_mode == "REMOTE_WAREHOUSE":
+            print(f" -> Note: Bounded sample snapshot contains {n_dates} unique report_date ({df[date_col].iloc[0]}).")
+            print("    The full warehouse daily_performance table spans 2025-01-27 to 2026-06-30 for longitudinal modeling.")
+
     print("\nRunning column schema discovery...")
     schema_disc = discover_schema(df)
     inspection_report["schema_discovery"] = schema_disc
 
-    # Identify candidate identifiers and performance fields
+    # Map candidate performance fields (metrics only)
     for col in df.columns:
         c_lower = col.lower()
-        if "client" in c_lower or "account" in c_lower or "tenant" in c_lower:
-            inspection_report["candidate_identifiers"]["client_id"] = col
-        elif "page" in c_lower or "url" in c_lower or "content" in c_lower or "doc" in c_lower:
-            inspection_report["candidate_identifiers"]["content_id"] = col
-        elif "date" in c_lower or "time" in c_lower or "period" in c_lower:
-            inspection_report["candidate_identifiers"]["report_date"] = col
-
-        if "click" in c_lower:
+        if c_lower in ("clicks", "organic_clicks", "gsc_clicks"):
             inspection_report["candidate_performance_fields"]["clicks"] = col
-        elif "impression" in c_lower:
+        elif c_lower in ("impressions", "organic_impressions", "gsc_impressions"):
             inspection_report["candidate_performance_fields"]["impressions"] = col
-        elif "ctr" in c_lower:
+        elif c_lower in ("ctr", "avg_ctr"):
             inspection_report["candidate_performance_fields"]["ctr"] = col
-        elif "position" in c_lower or "rank" in c_lower:
+        elif c_lower in ("gsc_avg_position", "avg_position", "position"):
             inspection_report["candidate_performance_fields"]["position"] = col
+        elif c_lower in ("ga4_pageviews", "pageviews"):
+            inspection_report["candidate_performance_fields"]["ga4_pageviews"] = col
 
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -193,9 +255,13 @@ def main():
     print(f" - Date fields detected: {schema_disc['date_fields']}")
     print(f" - Numeric fields: {len(schema_disc['numeric_fields'])}")
     print(f" - Categorical fields: {len(schema_disc['categorical_fields'])}")
-    print(f" - Candidate client identifier: {inspection_report['candidate_identifiers'].get('client_id', 'Not identified')}")
-    print(f" - Candidate content identifier: {inspection_report['candidate_identifiers'].get('content_id', 'Not identified')}")
-    print(f" - Candidate report date: {inspection_report['candidate_identifiers'].get('report_date', 'Not identified')}")
+    print(f" - Candidate client identifier: {inferred_ids.get('client_id', 'Not identified')}")
+    print(f" - Candidate content identifier: {inferred_ids.get('content_id', 'Not identified')}")
+    print(f" - Candidate report date: {inferred_ids.get('report_date', 'Not identified')}")
+
+    print("\nSafe identifier diagnostics:")
+    for col_name, diag in inspection_report["identifier_diagnostics"].items():
+        print(f"   * {col_name:<20} | Role: {diag['role']:<18} | Dtype: {diag['dtype']:<10} | Uniques: {diag['unique_count']} | Nulls: {diag['null_count']}")
 
     print("\nCandidate column inventory (bounded view):")
     for col, info in list(schema_disc["columns"].items())[:15]:

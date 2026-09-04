@@ -54,9 +54,14 @@ class LeakageAuditor:
 
     IDENTIFIER_TERMS: Set[str] = {
         "client_id",
+        "client_hash_id",
+        "client_hash",
         "tenant_id",
         "account_id",
         "page_id",
+        "content_id",
+        "content_hash_id",
+        "content_hash",
         "url_id",
         "doc_id",
         "url",

@@ -82,11 +82,19 @@ def build_feature_table(
     # 1. Base log volume features
     raw_clicks = df["clicks"] if "clicks" in df.columns else pd.Series(0.0, index=df.index)
     raw_impressions = df["impressions"] if "impressions" in df.columns else pd.Series(0.0, index=df.index)
-    raw_position = df["position"] if "position" in df.columns else pd.Series(20.0, index=df.index)
+    
+    # Position: use canonical position or raw gsc_avg_position
+    if "position" in df.columns:
+        raw_position = df["position"]
+    elif "gsc_avg_position" in df.columns:
+        raw_position = df["gsc_avg_position"]
+    else:
+        raw_position = pd.Series(20.0, index=df.index)
 
     X["log_clicks_lookback"] = compute_log_clicks(raw_clicks)
     X["log_impressions_lookback"] = compute_log_impressions(raw_impressions)
     X["observed_ctr"] = compute_observed_ctr(raw_clicks, raw_impressions)
+    # Missing position implies unranked / zero impression exposure; default to 20.0 (off page 1), never 0.0
     X["avg_position_lookback"] = raw_position.fillna(20.0).clip(1.0, 100.0)
 
     # 2. Trajectory features (if earlier/recent split columns are available, or derived)
@@ -109,6 +117,14 @@ def build_feature_table(
         X["active_day_ratio"] = (df["active_days"].fillna(14.0) / 28.0).clip(0.0, 1.0)
     else:
         X["active_day_ratio"] = 1.0
+
+    # 3. Structural availability indicators
+    if "ga4_data_available" in df.columns:
+        X["ga4_available_indicator"] = df["ga4_data_available"].fillna(False).astype(float)
+    elif "ga4_pageviews" in df.columns:
+        X["ga4_available_indicator"] = df["ga4_pageviews"].notnull().astype(float)
+    else:
+        X["ga4_available_indicator"] = 1.0
 
     # Ensure no NaNs or Infs remain in output feature table
     X = X.replace([np.inf, -np.inf], np.nan).fillna(0.0)

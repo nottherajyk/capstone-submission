@@ -91,7 +91,8 @@ def test_warehouse_root_path_resolution():
     sources = get_warehouse_sources(repo_id)
 
     assert sources["root"] == "hf://datasets/FlyRank/internship-warehouse"
-    assert "/data" not in sources["root"]
+    assert not sources["root"].endswith("/data")
+    assert "/internship-warehouse/data" not in sources["root"]
     assert sources["dim_clients"] == "hf://datasets/FlyRank/internship-warehouse/dim_clients.parquet"
     assert sources["dim_content"] == "hf://datasets/FlyRank/internship-warehouse/dim_content.parquet"
     assert sources["query_90d"] == "hf://datasets/FlyRank/internship-warehouse/fact_content_query_90d.parquet"
@@ -117,3 +118,100 @@ def test_error_classification_distinguishes_error_types():
 
     err_net = classify_warehouse_error(Exception("Could not resolve host huggingface.co"))
     assert "[NETWORK ERROR]" in str(err_net)
+
+
+def test_infer_candidate_identifiers_real_schema():
+    """Test 11: Candidate identifier inference selects client_hash_id, content_hash_id, report_date."""
+    import pandas as pd
+    from src.data import infer_candidate_identifiers
+
+    df_sample = pd.DataFrame({
+        "report_date": pd.to_datetime(["2026-06-30", "2026-06-30"]),
+        "client_hash_id": ["cl_hash_001", "cl_hash_002"],
+        "content_hash_id": ["cnt_hash_001", "cnt_hash_002"],
+        "client_has_gsc": [True, True],
+        "client_has_ga4": [True, False],
+        "gsc_data_available": [True, True],
+        "ga4_data_available": [True, False],
+        "impressions": [500, 1000],
+        "clicks": [14, 25],
+        "gsc_sum_position": [1427, 2800],
+        "gsc_avg_position": [4.2, 5.1],
+        "ga4_pageviews": [17, 0],
+    })
+
+    inferred = infer_candidate_identifiers(df_sample)
+
+    # Required assertion 1 & 2 & 3: correct canonical fields selected
+    assert inferred["client_id"] == "client_hash_id"
+    assert inferred["content_id"] == "content_hash_id"
+    assert inferred["report_date"] == "report_date"
+
+    # Required assertion 4 & 5: reject boolean and metric false matches
+    assert inferred["client_id"] != "client_has_ga4"
+    assert inferred["client_id"] != "client_has_gsc"
+    assert inferred["content_id"] != "ga4_pageviews"
+    assert inferred["content_id"] != "impressions"
+
+
+def test_numeric_and_boolean_fields_rejected_as_identifiers():
+    """Test 12: Numeric performance metrics and boolean flags cannot become entity identifiers."""
+    import pandas as pd
+    from src.data import infer_candidate_identifiers
+
+    # DataFrame with ONLY metrics and flags, without valid entity identifiers
+    df_no_ids = pd.DataFrame({
+        "client_has_ga4": [True, False],
+        "ga4_data_available": [True, False],
+        "ga4_pageviews": [100, 200],
+        "clicks": [10, 20],
+        "impressions": [1000, 2000],
+        "position": [3.5, 4.2],
+    })
+
+    inferred = infer_candidate_identifiers(df_no_ids)
+    assert inferred["client_id"] is None
+    assert inferred["content_id"] is None
+
+
+def test_resolve_canonical_columns_preserves_raw_columns():
+    """Test 13: resolve_canonical_columns does not rename or overwrite raw warehouse columns."""
+    import pandas as pd
+    from src.data import resolve_canonical_columns
+
+    df_raw = pd.DataFrame({
+        "report_date": pd.to_datetime(["2026-06-30"]),
+        "client_hash_id": ["cl_hash_abc"],
+        "content_hash_id": ["cnt_hash_xyz"],
+        "gsc_avg_position": [3.5],
+        "clicks": [10],
+        "impressions": [100],
+    })
+
+    schema_mapping = {
+        "identifiers": {
+            "client_id": {"canonical": "client_hash_id", "aliases": ["client_hash_id"]},
+            "content_id": {"canonical": "content_hash_id", "aliases": ["content_hash_id"]},
+            "report_date": {"canonical": "report_date", "aliases": ["report_date"]},
+        },
+        "raw_metrics": {
+            "position": {"canonical": "gsc_avg_position", "aliases": ["gsc_avg_position"]},
+        },
+    }
+
+    df_resolved = resolve_canonical_columns(df_raw, schema_mapping)
+
+    # Raw columns MUST be preserved
+    assert "client_hash_id" in df_resolved.columns
+    assert "content_hash_id" in df_resolved.columns
+    assert "report_date" in df_resolved.columns
+    assert "gsc_avg_position" in df_resolved.columns
+
+    # Canonical aliases MUST be populated
+    assert "client_id" in df_resolved.columns
+    assert "content_id" in df_resolved.columns
+    assert "date" in df_resolved.columns
+    assert "position" in df_resolved.columns
+    assert df_resolved["client_id"].iloc[0] == "cl_hash_abc"
+    assert df_resolved["content_id"].iloc[0] == "cnt_hash_xyz"
+    assert df_resolved["position"].iloc[0] == 3.5

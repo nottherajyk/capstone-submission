@@ -1,0 +1,679 @@
+{
+  "dataset": "FlyRank/internship-warehouse",
+  "release": "v20260703",
+  "duckdb_version": "1.5.5",
+  "source_mode": "REMOTE_WAREHOUSE",
+  "canonical_roles": {
+    "client_id": "client_hash_id",
+    "content_id": "content_hash_id",
+    "report_date": "report_date"
+  },
+  "warehouse_sources": {
+    "sample": {
+      "status": "REACHABLE",
+      "path": "hf://datasets/FlyRank/internship-warehouse/fact_content_daily_performance_sample.parquet",
+      "label": "SAMPLE (fact_content_daily_performance_sample.parquet)",
+      "column_count": 31,
+      "columns": {
+        "report_date": "DATE",
+        "client_hash_id": "VARCHAR",
+        "content_hash_id": "VARCHAR",
+        "client_has_gsc": "BOOLEAN",
+        "client_has_ga4": "BOOLEAN",
+        "gsc_data_available": "BOOLEAN",
+        "ga4_data_available": "BOOLEAN",
+        "gsc_impressions": "BIGINT",
+        "gsc_clicks": "BIGINT",
+        "gsc_sum_position": "BIGINT",
+        "gsc_avg_position": "DOUBLE",
+        "ga4_pageviews": "BIGINT",
+        "ga4_sessions": "BIGINT",
+        "ga4_users": "BIGINT",
+        "ga4_engaged_sessions": "BIGINT",
+        "ga4_total_engagement_sec": "BIGINT",
+        "sessions_organic": "BIGINT",
+        "sessions_direct": "BIGINT",
+        "sessions_referral": "BIGINT",
+        "sessions_social": "BIGINT",
+        "sessions_paid": "BIGINT",
+        "sessions_ai": "BIGINT",
+        "ai_chatgpt": "BIGINT",
+        "ai_perplexity": "BIGINT",
+        "ai_gemini": "BIGINT",
+        "ai_copilot": "BIGINT",
+        "ai_claude": "BIGINT",
+        "ai_meta": "BIGINT",
+        "ai_other": "BIGINT",
+        "scroll_events": "BIGINT",
+        "month": "VARCHAR"
+      },
+      "date_range": {
+        "min": "2026-06-01",
+        "max": "2026-06-30"
+      }
+    },
+    "dim_clients": {
+      "status": "REACHABLE",
+      "path": "hf://datasets/FlyRank/internship-warehouse/dim_clients.parquet",
+      "label": "DIMENSION TABLE (dim_clients.parquet)",
+      "column_count": 9,
+      "columns": {
+        "client_hash_id": "VARCHAR",
+        "is_active": "BOOLEAN",
+        "has_gsc_access": "BOOLEAN",
+        "has_ga4_access": "BOOLEAN",
+        "access_profile": "VARCHAR",
+        "client_created_date": "DATE",
+        "client_updated_date": "DATE",
+        "gsc_data_start": "DATE",
+        "ga4_data_start": "DATE"
+      },
+      "date_range": {
+        "min": "2025-05-26",
+        "max": "2026-06-29"
+      }
+    },
+    "dim_content": {
+      "status": "REACHABLE",
+      "path": "hf://datasets/FlyRank/internship-warehouse/dim_content.parquet",
+      "label": "DIMENSION TABLE (dim_content.parquet)",
+      "column_count": 26,
+      "columns": {
+        "client_hash_id": "VARCHAR",
+        "content_hash_id": "VARCHAR",
+        "keyword_hash_id": "VARCHAR",
+        "url_hash_id": "VARCHAR",
+        "keyword_char_count": "BIGINT",
+        "keyword_token_count": "BIGINT",
+        "url_char_count": "BIGINT",
+        "content_created_date": "DATE",
+        "content_updated_date": "DATE",
+        "content_type": "VARCHAR",
+        "search_volume": "BIGINT",
+        "competition": "DOUBLE",
+        "competition_level": "VARCHAR",
+        "cpc": "DOUBLE",
+        "main_intent": "VARCHAR",
+        "backlinks": "BIGINT",
+        "category_count": "BIGINT",
+        "keyword_created_date": "DATE",
+        "provider_used": "VARCHAR",
+        "model_used": "VARCHAR",
+        "char_count": "BIGINT",
+        "word_count": "BIGINT",
+        "last_optimized_date": "DATE",
+        "optimization_eligible_date": "DATE",
+        "is_published": "BOOLEAN",
+        "is_deleted": "BOOLEAN"
+      },
+      "date_range": {
+        "min": "2024-10-16",
+        "max": "2026-07-06"
+      }
+    },
+    "query_90d": {
+      "status": "REACHABLE",
+      "path": "hf://datasets/FlyRank/internship-warehouse/fact_content_query_90d.parquet",
+      "label": "QUERY TRAFFIC (fact_content_query_90d.parquet)",
+      "column_count": 21,
+      "columns": {
+        "client_hash_id": "VARCHAR",
+        "content_hash_id": "VARCHAR",
+        "query_hash_id": "VARCHAR",
+        "query_char_count": "BIGINT",
+        "query_token_count": "BIGINT",
+        "window_start": "DATE",
+        "window_end": "DATE",
+        "impressions_90d": "BIGINT",
+        "clicks_90d": "BIGINT",
+        "impressions_last30": "BIGINT",
+        "clicks_last30": "BIGINT",
+        "impressions_prev30": "BIGINT",
+        "clicks_prev30": "BIGINT",
+        "avg_position_90d": "DOUBLE",
+        "avg_position_last30": "DOUBLE",
+        "avg_position_prev30": "DOUBLE",
+        "content_total_impressions_90d": "BIGINT",
+        "content_visible_query_count": "BIGINT",
+        "rare_query_count": "BIGINT",
+        "rare_impressions_share": "DOUBLE",
+        "anonymized_impressions_share": "DOUBLE"
+      }
+    },
+    "daily_performance": {
+      "status": "REACHABLE",
+      "path": "hf://datasets/FlyRank/internship-warehouse/fact_content_daily_performance/**/*.parquet",
+      "label": "FULL WAREHOUSE (fact_content_daily_performance/**/*.parquet)",
+      "column_count": 31,
+      "columns": {
+        "report_date": "DATE",
+        "client_hash_id": "VARCHAR",
+        "content_hash_id": "VARCHAR",
+        "client_has_gsc": "BOOLEAN",
+        "client_has_ga4": "BOOLEAN",
+        "gsc_data_available": "BOOLEAN",
+        "ga4_data_available": "BOOLEAN",
+        "gsc_impressions": "BIGINT",
+        "gsc_clicks": "BIGINT",
+        "gsc_sum_position": "BIGINT",
+        "gsc_avg_position": "DOUBLE",
+        "ga4_pageviews": "BIGINT",
+        "ga4_sessions": "BIGINT",
+        "ga4_users": "BIGINT",
+        "ga4_engaged_sessions": "BIGINT",
+        "ga4_total_engagement_sec": "BIGINT",
+        "sessions_organic": "BIGINT",
+        "sessions_direct": "BIGINT",
+        "sessions_referral": "BIGINT",
+        "sessions_social": "BIGINT",
+        "sessions_paid": "BIGINT",
+        "sessions_ai": "BIGINT",
+        "ai_chatgpt": "BIGINT",
+        "ai_perplexity": "BIGINT",
+        "ai_gemini": "BIGINT",
+        "ai_copilot": "BIGINT",
+        "ai_claude": "BIGINT",
+        "ai_meta": "BIGINT",
+        "ai_other": "BIGINT",
+        "scroll_events": "BIGINT",
+        "month": "VARCHAR"
+      },
+      "date_range": {
+        "min": "2025-01-27",
+        "max": "2026-06-30"
+      }
+    }
+  },
+  "candidate_identifiers": {
+    "client_id": "client_hash_id",
+    "content_id": "content_hash_id",
+    "report_date": "report_date"
+  },
+  "identifier_diagnostics": {
+    "client_hash_id": {
+      "role": "client_id",
+      "dtype": "str",
+      "unique_count": 9,
+      "null_count": 0,
+      "is_string_or_hash": true
+    },
+    "content_hash_id": {
+      "role": "content_id",
+      "dtype": "str",
+      "unique_count": 50000,
+      "null_count": 0,
+      "is_string_or_hash": true
+    },
+    "report_date": {
+      "role": "report_date",
+      "dtype": "datetime64[us]",
+      "unique_count": 1,
+      "null_count": 0,
+      "is_string_or_hash": true
+    }
+  },
+  "analytical_grain": {
+    "keys": [
+      "client_hash_id",
+      "content_hash_id",
+      "report_date"
+    ],
+    "total_rows_inspected": 50000,
+    "distinct_grain_combinations": 50000,
+    "duplicate_count": 0,
+    "grain_holds": true,
+    "notes": "Verified unique at grain client_hash_id \u00d7 content_hash_id \u00d7 report_date"
+  },
+  "candidate_performance_fields": {
+    "impressions": "impressions",
+    "clicks": "clicks",
+    "position": "position",
+    "ga4_pageviews": "ga4_pageviews"
+  },
+  "schema_discovery": {
+    "row_count": 50000,
+    "column_count": 37,
+    "columns": {
+      "report_date": {
+        "dtype": "datetime64[us]",
+        "null_count": 0,
+        "null_pct": 0.0,
+        "unique_values": 1,
+        "sample_values": [
+          "2026-06-01 00:00:00",
+          "2026-06-01 00:00:00",
+          "2026-06-01 00:00:00"
+        ]
+      },
+      "client_hash_id": {
+        "dtype": "str",
+        "null_count": 0,
+        "null_pct": 0.0,
+        "unique_values": 9,
+        "sample_values": [
+          "[ANONYMIZED_KEY]"
+        ]
+      },
+      "content_hash_id": {
+        "dtype": "str",
+        "null_count": 0,
+        "null_pct": 0.0,
+        "unique_values": 50000,
+        "sample_values": [
+          "[ANONYMIZED_KEY]"
+        ]
+      },
+      "client_has_gsc": {
+        "dtype": "bool",
+        "null_count": 0,
+        "null_pct": 0.0,
+        "unique_values": 1,
+        "sample_values": [
+          "True",
+          "True",
+          "True"
+        ]
+      },
+      "client_has_ga4": {
+        "dtype": "bool",
+        "null_count": 0,
+        "null_pct": 0.0,
+        "unique_values": 2,
+        "sample_values": [
+          "True",
+          "True",
+          "True"
+        ]
+      },
+      "gsc_data_available": {
+        "dtype": "bool",
+        "null_count": 0,
+        "null_pct": 0.0,
+        "unique_values": 2,
+        "sample_values": [
+          "False",
+          "False",
+          "False"
+        ]
+      },
+      "ga4_data_available": {
+        "dtype": "boolean",
+        "null_count": 10000,
+        "null_pct": 20.0,
+        "unique_values": 2,
+        "sample_values": [
+          "False",
+          "False",
+          "False"
+        ]
+      },
+      "gsc_impressions": {
+        "dtype": "int64",
+        "null_count": 0,
+        "null_pct": 0.0,
+        "unique_values": 500,
+        "sample_values": [
+          "0",
+          "0",
+          "0"
+        ]
+      },
+      "gsc_clicks": {
+        "dtype": "int64",
+        "null_count": 0,
+        "null_pct": 0.0,
+        "unique_values": 14,
+        "sample_values": [
+          "0",
+          "0",
+          "0"
+        ]
+      },
+      "gsc_sum_position": {
+        "dtype": "int64",
+        "null_count": 0,
+        "null_pct": 0.0,
+        "unique_values": 1427,
+        "sample_values": [
+          "0",
+          "0",
+          "0"
+        ]
+      },
+      "gsc_avg_position": {
+        "dtype": "float64",
+        "null_count": 39877,
+        "null_pct": 79.75,
+        "unique_values": 3988,
+        "sample_values": [
+          "5.0",
+          "7.0",
+          "30.5"
+        ]
+      },
+      "ga4_pageviews": {
+        "dtype": "Int64",
+        "null_count": 10000,
+        "null_pct": 20.0,
+        "unique_values": 17,
+        "sample_values": [
+          "0",
+          "0",
+          "0"
+        ]
+      },
+      "ga4_sessions": {
+        "dtype": "Int64",
+        "null_count": 10000,
+        "null_pct": 20.0,
+        "unique_values": 17,
+        "sample_values": [
+          "0",
+          "0",
+          "0"
+        ]
+      },
+      "ga4_users": {
+        "dtype": "Int64",
+        "null_count": 10000,
+        "null_pct": 20.0,
+        "unique_values": 17,
+        "sample_values": [
+          "0",
+          "0",
+          "0"
+        ]
+      },
+      "ga4_engaged_sessions": {
+        "dtype": "Int64",
+        "null_count": 10000,
+        "null_pct": 20.0,
+        "unique_values": 3,
+        "sample_values": [
+          "0",
+          "0",
+          "0"
+        ]
+      },
+      "ga4_total_engagement_sec": {
+        "dtype": "Int64",
+        "null_count": 10000,
+        "null_pct": 20.0,
+        "unique_values": 38,
+        "sample_values": [
+          "0",
+          "0",
+          "0"
+        ]
+      },
+      "sessions_organic": {
+        "dtype": "Int64",
+        "null_count": 10000,
+        "null_pct": 20.0,
+        "unique_values": 12,
+        "sample_values": [
+          "0",
+          "0",
+          "0"
+        ]
+      },
+      "sessions_direct": {
+        "dtype": "Int64",
+        "null_count": 10000,
+        "null_pct": 20.0,
+        "unique_values": 8,
+        "sample_values": [
+          "0",
+          "0",
+          "0"
+        ]
+      },
+      "sessions_referral": {
+        "dtype": "Int64",
+        "null_count": 10000,
+        "null_pct": 20.0,
+        "unique_values": 3,
+        "sample_values": [
+          "0",
+          "0",
+          "0"
+        ]
+      },
+      "sessions_social": {
+        "dtype": "Int64",
+        "null_count": 10000,
+        "null_pct": 20.0,
+        "unique_values": 3,
+        "sample_values": [
+          "0",
+          "0",
+          "0"
+        ]
+      },
+      "sessions_paid": {
+        "dtype": "Int64",
+        "null_count": 10000,
+        "null_pct": 20.0,
+        "unique_values": 2,
+        "sample_values": [
+          "[ANONYMIZED_KEY]"
+        ]
+      },
+      "sessions_ai": {
+        "dtype": "Int64",
+        "null_count": 10000,
+        "null_pct": 20.0,
+        "unique_values": 3,
+        "sample_values": [
+          "0",
+          "0",
+          "0"
+        ]
+      },
+      "ai_chatgpt": {
+        "dtype": "Int64",
+        "null_count": 10000,
+        "null_pct": 20.0,
+        "unique_values": 3,
+        "sample_values": [
+          "0",
+          "0",
+          "0"
+        ]
+      },
+      "ai_perplexity": {
+        "dtype": "Int64",
+        "null_count": 10000,
+        "null_pct": 20.0,
+        "unique_values": 2,
+        "sample_values": [
+          "0",
+          "0",
+          "0"
+        ]
+      },
+      "ai_gemini": {
+        "dtype": "Int64",
+        "null_count": 10000,
+        "null_pct": 20.0,
+        "unique_values": 2,
+        "sample_values": [
+          "0",
+          "0",
+          "0"
+        ]
+      },
+      "ai_copilot": {
+        "dtype": "Int64",
+        "null_count": 10000,
+        "null_pct": 20.0,
+        "unique_values": 1,
+        "sample_values": [
+          "0",
+          "0",
+          "0"
+        ]
+      },
+      "ai_claude": {
+        "dtype": "Int64",
+        "null_count": 10000,
+        "null_pct": 20.0,
+        "unique_values": 2,
+        "sample_values": [
+          "0",
+          "0",
+          "0"
+        ]
+      },
+      "ai_meta": {
+        "dtype": "Int64",
+        "null_count": 10000,
+        "null_pct": 20.0,
+        "unique_values": 1,
+        "sample_values": [
+          "0",
+          "0",
+          "0"
+        ]
+      },
+      "ai_other": {
+        "dtype": "Int64",
+        "null_count": 10000,
+        "null_pct": 20.0,
+        "unique_values": 1,
+        "sample_values": [
+          "0",
+          "0",
+          "0"
+        ]
+      },
+      "scroll_events": {
+        "dtype": "Int64",
+        "null_count": 10000,
+        "null_pct": 20.0,
+        "unique_values": 10,
+        "sample_values": [
+          "0",
+          "0",
+          "0"
+        ]
+      },
+      "month": {
+        "dtype": "str",
+        "null_count": 0,
+        "null_pct": 0.0,
+        "unique_values": 1,
+        "sample_values": [
+          "2026-06",
+          "2026-06",
+          "2026-06"
+        ]
+      },
+      "client_id": {
+        "dtype": "str",
+        "null_count": 0,
+        "null_pct": 0.0,
+        "unique_values": 9,
+        "sample_values": [
+          "[ANONYMIZED_KEY]"
+        ]
+      },
+      "content_id": {
+        "dtype": "str",
+        "null_count": 0,
+        "null_pct": 0.0,
+        "unique_values": 50000,
+        "sample_values": [
+          "[ANONYMIZED_KEY]"
+        ]
+      },
+      "clicks": {
+        "dtype": "int64",
+        "null_count": 0,
+        "null_pct": 0.0,
+        "unique_values": 14,
+        "sample_values": [
+          "0",
+          "0",
+          "0"
+        ]
+      },
+      "impressions": {
+        "dtype": "int64",
+        "null_count": 0,
+        "null_pct": 0.0,
+        "unique_values": 500,
+        "sample_values": [
+          "0",
+          "0",
+          "0"
+        ]
+      },
+      "position": {
+        "dtype": "float64",
+        "null_count": 39877,
+        "null_pct": 79.75,
+        "unique_values": 3988,
+        "sample_values": [
+          "5.0",
+          "7.0",
+          "30.5"
+        ]
+      },
+      "date": {
+        "dtype": "datetime64[us]",
+        "null_count": 0,
+        "null_pct": 0.0,
+        "unique_values": 1,
+        "sample_values": [
+          "2026-06-01 00:00:00",
+          "2026-06-01 00:00:00",
+          "2026-06-01 00:00:00"
+        ]
+      }
+    },
+    "date_fields": [
+      "report_date",
+      "date"
+    ],
+    "numeric_fields": [
+      "client_has_gsc",
+      "client_has_ga4",
+      "gsc_data_available",
+      "ga4_data_available",
+      "gsc_impressions",
+      "gsc_clicks",
+      "gsc_sum_position",
+      "gsc_avg_position",
+      "ga4_pageviews",
+      "ga4_sessions",
+      "ga4_users",
+      "ga4_engaged_sessions",
+      "ga4_total_engagement_sec",
+      "sessions_organic",
+      "sessions_direct",
+      "sessions_referral",
+      "sessions_social",
+      "sessions_paid",
+      "sessions_ai",
+      "ai_chatgpt",
+      "ai_perplexity",
+      "ai_gemini",
+      "ai_copilot",
+      "ai_claude",
+      "ai_meta",
+      "ai_other",
+      "scroll_events",
+      "clicks",
+      "impressions",
+      "position"
+    ],
+    "categorical_fields": [
+      "client_hash_id",
+      "content_hash_id",
+      "month",
+      "client_id",
+      "content_id"
+    ]
+  }
+}
