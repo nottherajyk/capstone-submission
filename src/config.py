@@ -7,10 +7,17 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import os
+
 try:
     import yaml
 except ImportError:
     yaml = None
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 
 def _parse_simple_yaml(text: str) -> Dict[str, Any]:

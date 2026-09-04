@@ -4,6 +4,10 @@ project:
   version: "1.0.0"
   random_seed: 42
 
+hf:
+  token_env_var: "HF_TOKEN"
+  dataset_repo: "FlyRank/internship-warehouse"
+
 data:
   # Source can be local file path or DuckDB HF query
   raw_path: "data/raw/content_refresh_anonymized.csv"

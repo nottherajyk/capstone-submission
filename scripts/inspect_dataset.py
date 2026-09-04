@@ -3,18 +3,26 @@
 Dataset discovery and schema inspection utility.
 Scans the connected dataset to identify columns, dtypes, missingness, cardinality,
 and candidate leakage fields before any downstream modeling is performed.
+Loads local .env and uses HF_TOKEN for Hugging Face authentication.
 """
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 from src.config import load_config
-from src.data import discover_schema, load_dataset
+from src.data import discover_schema, get_hf_token, load_dataset
 
 
 def main():
@@ -32,18 +40,25 @@ def main():
     print(f"Target dataset path: {data_path}")
 
     target_file = Path(data_path)
-    if not target_file.exists():
-        print(f"\n[STATUS: AWAITING REAL WAREHOUSE DATASET]")
-        print(f"The configured dataset file '{data_path}' was not found.")
-        print("To connect the dataset:")
-        print(" 1. Download or query your approved FlyRank slice (or internship warehouse export).")
-        print(f" 2. Save it to '{data_path}' or configure FLYRANK_DATA_PATH in .env.")
+    hf_token = get_hf_token(raise_error=False)
+
+    if not target_file.exists() and not hf_token:
+        print(f"\n[STATUS: HF_TOKEN NOT CONFIGURED]")
+        print("HF_TOKEN is not configured. Set HF_TOKEN in your environment or local .env file before accessing the gated FlyRank warehouse.")
+        print("\nLocal Setup Instructions:")
+        print(" 1. Create a local .env file in the repository root containing:")
+        print("    HF_TOKEN=hf_your_actual_token_here")
+        print(" 2. Or in PowerShell: $env:HF_TOKEN=\"hf_your_actual_token_here\"")
         print(" 3. Re-run: python scripts/inspect_dataset.py\n")
         return 0
 
-    print("Loading dataset...")
-    df = load_dataset(data_path, config)
-    print(f"Successfully loaded {len(df):,} rows across {len(df.columns)} columns.")
+    print("Loading dataset (using local file or authenticated Hugging Face connection)...")
+    try:
+        df = load_dataset(data_path, config)
+        print(f"Successfully loaded {len(df):,} rows across {len(df.columns)} columns.")
+    except Exception as e:
+        print(f"\n[ERROR LOADING DATASET]: {e}")
+        return 1
 
     print("\nRunning schema discovery...")
     inspection = discover_schema(df)

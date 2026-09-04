@@ -1,23 +1,55 @@
 """
 Dataset loader and discovery interface for FlyRank Search Intelligence.
-Supports local CSV/Parquet and DuckDB connections to warehouse tables.
+Supports local CSV/Parquet and DuckDB connections to warehouse tables using HF_TOKEN authentication.
 """
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+import os
+
 try:
     import pandas as pd
 except ImportError:
     pd = None
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 from src.config import AppConfig, load_config
 
 
-def discover_schema(df: pd.DataFrame) -> Dict[str, Any]:
+def get_hf_token(raise_error: bool = True) -> Optional[str]:
+    """
+    Safely retrieve HF_TOKEN from environment or local .env file.
+    Never prints, logs, or includes the token in exception messages.
+    """
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except ImportError:
+        pass
+
+    token = os.getenv("HF_TOKEN")
+    if not token or token == "hf_your_token_here" or not token.strip():
+        if raise_error:
+            raise ValueError(
+                "HF_TOKEN is not configured. Set HF_TOKEN in your environment or local .env file before accessing the gated FlyRank warehouse."
+            )
+        return None
+    return token.strip()
+
+
+def discover_schema(df: Any) -> Dict[str, Any]:
     """
     Inspect a connected dataset and extract columns, dtypes, missingness,
     and cardinality without assuming pre-existing schemas.
     """
+    if pd is None:
+        raise ImportError("pandas is required to discover schema. Run: pip install -r requirements.txt")
+
     inspection: Dict[str, Any] = {
         "row_count": len(df),
         "column_count": len(df.columns),
@@ -53,9 +85,9 @@ def discover_schema(df: pd.DataFrame) -> Dict[str, Any]:
 
 
 def resolve_canonical_columns(
-    df: pd.DataFrame,
+    df: Any,
     schema_mapping: Dict[str, Any],
-) -> pd.DataFrame:
+) -> Any:
     """
     Map raw dataframe column names to canonical internal names based on schema_mapping.yaml aliases.
     Does NOT invent missing columns.
@@ -92,26 +124,41 @@ def resolve_canonical_columns(
 def load_dataset(
     path: Optional[str] = None,
     config: Optional[AppConfig] = None,
-) -> pd.DataFrame:
+) -> Any:
     """
     Load dataset from path or configured default location.
-    If path does not exist, raises FileNotFoundError with explicit instructions.
+    If local path does not exist, attempts HF warehouse connection using HF_TOKEN.
     """
+    if pd is None:
+        raise ImportError("pandas is required to load dataset. Run: pip install -r requirements.txt")
+
     if config is None:
         config = load_config()
 
     target_path = Path(path if path is not None else config.raw_data_path)
 
-    if not target_path.exists():
-        raise FileNotFoundError(
-            f"Dataset not found at '{target_path}'. "
-            f"Please place the FlyRank dataset at '{target_path}' or set FLYRANK_DATA_PATH in .env."
-        )
-
-    if str(target_path).endswith(".parquet"):
-        df = pd.read_parquet(target_path)
+    if target_path.exists():
+        if str(target_path).endswith(".parquet"):
+            df = pd.read_parquet(target_path)
+        else:
+            df = pd.read_csv(target_path)
     else:
-        df = pd.read_csv(target_path)
+        # Check HF_TOKEN for Hugging Face Warehouse access
+        token = get_hf_token(raise_error=True)
+        try:
+            import duckdb
+            repo_id = config.schema_mapping.get("hf", {}).get("dataset_repo", "FlyRank/internship-warehouse")
+            conn = duckdb.connect()
+            conn.execute(f"SET http_headers = {{'Authorization': 'Bearer {token}'}};")
+            # Query gated warehouse parquet files
+            df = conn.execute(f"SELECT * FROM 'hf://datasets/{repo_id}/data/*.parquet' LIMIT 50000").df()
+        except Exception as e:
+            # Mask secret if present in lower-level exception
+            err_str = str(e).replace(token, "[REDACTED_HF_TOKEN]")
+            raise RuntimeError(
+                f"Failed to load dataset from FlyRank warehouse ({err_str}). "
+                f"Ensure HF_TOKEN is valid and access to 'FlyRank/internship-warehouse' is approved."
+            ) from None
 
     # Resolve column names per schema mapping
     if config.schema_mapping:

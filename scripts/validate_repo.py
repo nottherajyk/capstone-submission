@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 Authoritative repository validation suite for FlyRank Capstone.
-Enforces structural integrity, one-line submission file constraints,
-anti-hardcoding bans, and unit testing validation.
+Enforces structural integrity, single-line submission file constraint,
+anti-hardcoding bans, credential leakage scanning, and unit test execution.
 """
 
 import ast
@@ -40,6 +40,7 @@ REQUIRED_FILES = [
     "tests/test_splits.py",
     "tests/test_metrics.py",
     "tests/test_privacy.py",
+    "tests/test_auth.py",
     "scripts/inspect_dataset.py",
     "scripts/run_pipeline.py",
     "scripts/generate_paper.py",
@@ -62,6 +63,19 @@ FORBIDDEN_PATTERNS = [
     re.compile(r"\b22%\s+positive\s+rate\b", re.IGNORECASE),
     re.compile(r"\b30[,\.]?000\s+pages\b", re.IGNORECASE),
 ]
+
+SAFE_HF_PLACEHOLDERS = {
+    "hf_your_token_here",
+    "hf_your_actual_token_here",
+    "your_huggingface_token_here",
+    "hf_123456789012345678901234567890",
+    "hf_abcdefghijklmnopqrstuvwxyz123456",
+    "hf_abcdefghijklmnopqrstuvwxyz1234567890",
+    "hf_secret12345678901234567890",
+}
+
+HF_TOKEN_PATTERN = re.compile(r"\bhf_[A-Za-z0-9]{20,}\b")
+CREDENTIAL_ASSIGN_PATTERN = re.compile(r"HF_TOKEN\s*=\s*['\"]?(hf_[A-Za-z0-9_\-]+)['\"]?")
 
 
 def validate_repository_structure() -> bool:
@@ -136,8 +150,54 @@ def scan_for_hardcoded_empirical_results() -> bool:
     return True
 
 
+def scan_for_accidental_secrets() -> bool:
+    print("\n4. Scanning repository for accidental credentials and tokens...")
+    # Check if .env file exists and warn/fail if it is tracked by git
+    if Path(".env").exists():
+        res = subprocess.run(["git", "ls-files", "--error-unmatch", ".env"], capture_output=True, text=True)
+        if res.returncode == 0:
+            print("FAILED: .env file is tracked in Git! Run: git rm --cached .env")
+            return False
+
+    secret_violations = []
+    root = Path(".")
+
+    ignored_dirs = {".git", ".venv", "venv", "__pycache__", ".pytest_cache", "node_modules"}
+
+    for path in root.rglob("*"):
+        if path.is_dir() or any(part in ignored_dirs for part in path.parts):
+            continue
+
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                text = f.read()
+
+            for match in HF_TOKEN_PATTERN.finditer(text):
+                token_val = match.group(0)
+                if token_val not in SAFE_HF_PLACEHOLDERS:
+                    redacted = token_val[:5] + "...[REDACTED]"
+                    secret_violations.append(f"{path}: Found token matching HF pattern ({redacted})")
+
+            for match in CREDENTIAL_ASSIGN_PATTERN.finditer(text):
+                val = match.group(1)
+                if val not in SAFE_HF_PLACEHOLDERS:
+                    redacted = val[:5] + "...[REDACTED]"
+                    secret_violations.append(f"{path}: Found HF_TOKEN assignment ({redacted})")
+        except Exception:
+            pass
+
+    if secret_violations:
+        print(f"FAILED: Found {len(secret_violations)} potential real credential leaks:")
+        for sv in secret_violations:
+            print(f"  - {sv}")
+        return False
+
+    print("   Zero committed secrets or real Hugging Face tokens detected.")
+    return True
+
+
 def validate_python_code_and_tests() -> bool:
-    print("\n4. Validating Python source code syntax and AST...")
+    print("\n5. Validating Python source code syntax and AST...")
     src_files = list(Path("src").glob("*.py")) + list(Path("scripts").glob("*.py")) + list(Path("tests").glob("*.py"))
     ast_errors = []
 
@@ -156,7 +216,7 @@ def validate_python_code_and_tests() -> bool:
     print(f"   Syntax & AST validated cleanly across all {len(src_files)} Python modules.")
 
     # Check if pytest is available in this environment to run the test suite
-    print("\n5. Checking test suite execution runner...")
+    print("\n6. Checking test suite execution runner...")
     check_pytest = subprocess.run([sys.executable, "-m", "pytest", "--version"], capture_output=True, text=True)
     if check_pytest.returncode == 0:
         res = subprocess.run([sys.executable, "-m", "pytest", "tests/"], capture_output=True, text=True)
@@ -167,7 +227,7 @@ def validate_python_code_and_tests() -> bool:
             return False
         print("   All pytest unit tests passed.")
     else:
-        print("   [INFO] pytest is not yet installed in the current environment.")
+        print("   [INFO] pytest is not yet installed in the active environment.")
         print("   Dependencies are specified in requirements.txt (pip install -r requirements.txt).")
         print("   AST parsing and code contract checks passed.")
 
@@ -182,10 +242,11 @@ def main():
     ok1 = validate_repository_structure()
     ok2 = validate_submission_file()
     ok3 = scan_for_hardcoded_empirical_results()
-    ok4 = validate_python_code_and_tests()
+    ok4 = scan_for_accidental_secrets()
+    ok5 = validate_python_code_and_tests()
 
     print("==================================================")
-    if ok1 and ok2 and ok3 and ok4:
+    if ok1 and ok2 and ok3 and ok4 and ok5:
         print("ALL ACCEPTANCE VALIDATION CHECKS PASSED.")
         return 0
     else:

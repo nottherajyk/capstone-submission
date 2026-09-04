@@ -1,6 +1,6 @@
 # FlyRank Applied Search Intelligence — Capstone Repository
 
-[![Validation Checks](https://github.com/nottherajyk/flyrank-capstone/actions/workflows/deploy-paper.yml/badge.svg)](https://github.com/nottherajyk/flyrank-capstone/actions)
+[![Validation Checks](https://github.com/nottherajyk/capstone-submission/actions/workflows/deploy-paper.yml/badge.svg)](https://github.com/nottherajyk/capstone-submission/actions)
 
 > **Research Question:**  
 > *"Can historical search-performance signals identify content that is likely to experience meaningful future deterioration, enabling a more effective refresh-prioritization queue?"*
@@ -49,7 +49,8 @@ flyrank-capstone/
 │   ├── test_leakage.py
 │   ├── test_splits.py
 │   ├── test_metrics.py
-│   └── test_privacy.py
+│   ├── test_privacy.py
+│   └── test_auth.py
 │
 ├── scripts/                      # Discovery, pipeline, paper & validation scripts
 │   ├── inspect_dataset.py
@@ -150,7 +151,49 @@ python scripts/validate_repo.py
 
 ---
 
-## 6. Honest Research Framing
+## 6. Hugging Face Authentication & Local Setup
+
+The FlyRank warehouse dataset hosted at `FlyRank/internship-warehouse` is gated. Access requires a valid Hugging Face User Access Token (`HF_TOKEN`).
+
+> **Security Rule:** Never commit your `HF_TOKEN` or `.env` file to version control. The token must only be supplied via your local environment.
+
+### Obtaining your Token
+1. Request access on Hugging Face at [`FlyRank/internship-warehouse`](https://huggingface.co/datasets/FlyRank/internship-warehouse).
+2. Generate a read token in your Hugging Face Account Settings (**Settings → Access Tokens → New Token → Read**).
+
+### Local Configuration Options (Windows & Cross-Platform)
+
+#### Option A: Local `.env` file (Recommended for local development)
+Create a `.env` file in the repository root (copied from `.env.example`):
+
+```env
+HF_TOKEN=hf_your_actual_token_here
+```
+
+*Note: `.env` is ignored by `.gitignore` and will never be committed to Git.*
+
+#### Option B: Windows PowerShell Environment Variable
+```powershell
+$env:HF_TOKEN="hf_your_actual_token_here"
+python scripts/inspect_dataset.py
+```
+
+#### Option C: Command Prompt (cmd.exe)
+```cmd
+set HF_TOKEN=hf_your_actual_token_here
+python scripts/inspect_dataset.py
+```
+
+### Verifying Access
+Verify your configuration by running the dataset inspection script:
+```bash
+python scripts/inspect_dataset.py
+```
+If configured correctly, the script detects `HF_TOKEN`, connects to the FlyRank warehouse, and displays non-sensitive schema metadata.
+
+---
+
+## 7. Honest Research Framing
 
 - **Decision-Support Focus**: This work models observable page-level engagement signals to assist human editorial teams.
 - **No Causal Claims**: Content updates are not guaranteed to cause organic traffic recovery; ranking results are influenced by external competition, indexation shifts, and search engine algorithm updates.
