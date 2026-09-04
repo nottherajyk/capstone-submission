@@ -11,20 +11,25 @@ import pandas as pd
 
 def compute_log_clicks(clicks: pd.Series) -> pd.Series:
     """Log1p transform of clicks with zero-safety."""
-    return np.log1p(np.maximum(clicks.fillna(0.0), 0.0))
+    arr = np.log1p(np.maximum(clicks.fillna(0.0), 0.0))
+    return pd.Series(arr, index=clicks.index, name="log_clicks_lookback")
 
 
 def compute_log_impressions(impressions: pd.Series) -> pd.Series:
     """Log1p transform of impressions with zero-safety."""
-    return np.log1p(np.maximum(impressions.fillna(0.0), 0.0))
+    arr = np.log1p(np.maximum(impressions.fillna(0.0), 0.0))
+    return pd.Series(arr, index=impressions.index, name="log_impressions_lookback")
 
 
 def compute_observed_ctr(clicks: pd.Series, impressions: pd.Series) -> pd.Series:
-    """Historical CTR with zero-denominator protection."""
+    """
+    Historical CTR with zero-denominator protection.
+    Preserves input index and returns a pandas Series.
+    """
     safe_clicks = np.maximum(clicks.fillna(0.0), 0.0)
     safe_impressions = np.maximum(impressions.fillna(0.0), 0.0)
-    # Clip CTR to realistic SERP range [0.0, 1.0]
-    return np.clip(np.where(safe_impressions > 0, safe_clicks / safe_impressions, 0.0), 0.0, 1.0)
+    ctr_arr = np.clip(np.where(safe_impressions > 0, safe_clicks / safe_impressions, 0.0), 0.0, 1.0)
+    return pd.Series(ctr_arr, index=clicks.index, name="observed_ctr")
 
 
 def compute_position_momentum(
@@ -37,7 +42,8 @@ def compute_position_momentum(
     """
     safe_recent = np.maximum(recent_position.fillna(20.0), 1.0)
     safe_baseline = np.maximum(baseline_position.fillna(20.0), 1.0)
-    return np.clip(safe_recent / safe_baseline, 0.1, 10.0)
+    arr = np.clip(safe_recent / safe_baseline, 0.1, 10.0)
+    return pd.Series(arr, index=recent_position.index, name="position_momentum_ratio")
 
 
 def compute_traffic_velocity(
@@ -51,14 +57,16 @@ def compute_traffic_velocity(
     safe_recent = np.maximum(recent_clicks.fillna(0.0), 0.0)
     safe_baseline = np.maximum(baseline_clicks.fillna(0.0), 0.0)
     denom = np.maximum(safe_baseline, 1.0)
-    return np.clip(safe_recent / denom, 0.0, 10.0)
+    arr = np.clip(safe_recent / denom, 0.0, 10.0)
+    return pd.Series(arr, index=recent_clicks.index, name="traffic_velocity_ratio")
 
 
 def compute_impression_volatility(daily_impressions_std: pd.Series, mean_impressions: pd.Series) -> pd.Series:
     """Coefficient of variation for impressions: std / (mean + 1)."""
     safe_std = np.maximum(daily_impressions_std.fillna(0.0), 0.0)
     safe_mean = np.maximum(mean_impressions.fillna(0.0), 0.0)
-    return np.clip(safe_std / (safe_mean + 1.0), 0.0, 5.0)
+    arr = np.clip(safe_std / (safe_mean + 1.0), 0.0, 5.0)
+    return pd.Series(arr, index=daily_impressions_std.index, name="impression_volatility")
 
 
 def build_feature_table(
@@ -85,7 +93,6 @@ def build_feature_table(
     if "recent_clicks" in df.columns and "baseline_clicks" in df.columns:
         X["traffic_velocity_ratio"] = compute_traffic_velocity(df["recent_clicks"], df["baseline_clicks"])
     else:
-        # If single aggregate window provided, derive from available deltas or fallback to neutral 1.0
         X["traffic_velocity_ratio"] = 1.0
 
     if "recent_position" in df.columns and "baseline_position" in df.columns:

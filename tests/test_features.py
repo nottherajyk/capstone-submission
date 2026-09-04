@@ -45,6 +45,17 @@ def test_observed_ctr_zero_denominator():
     assert (ctr >= 0.0).all() and (ctr <= 1.0).all()
 
 
+def test_observed_ctr_return_type_and_index_preservation():
+    clicks = pd.Series([10.0, 20.0, np.nan], index=["p1", "p2", "p3"])
+    impressions = pd.Series([100.0, 0.0, 50.0], index=["p1", "p2", "p3"])
+
+    ctr = compute_observed_ctr(clicks, impressions)
+
+    assert isinstance(ctr, pd.Series)
+    assert ctr.index.equals(clicks.index)
+    assert np.isfinite(ctr).all()
+
+
 def test_position_momentum_and_velocity():
     recent_pos = pd.Series([12.0, 5.0, np.nan])
     base_pos = pd.Series([10.0, 10.0, 10.0])

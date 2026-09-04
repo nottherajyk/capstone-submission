@@ -167,6 +167,8 @@ def scan_for_accidental_secrets() -> bool:
     for path in root.rglob("*"):
         if path.is_dir() or any(part in ignored_dirs for part in path.parts):
             continue
+        if path.name.startswith(".env") and path.name != ".env.example":
+            continue
 
         try:
             with open(path, "r", encoding="utf-8", errors="ignore") as f:
