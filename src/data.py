@@ -1,6 +1,6 @@
 """
 Dataset loader and discovery interface for FlyRank Search Intelligence.
-Supports local CSV/Parquet and DuckDB connections to warehouse tables using HF_TOKEN authentication.
+Supports local CSV/Parquet and DuckDB Secret Manager connections (httpfs) to Hugging Face warehouse tables.
 """
 
 from pathlib import Path
@@ -11,6 +11,11 @@ try:
     import pandas as pd
 except ImportError:
     pd = None
+
+try:
+    import duckdb
+except ImportError:
+    duckdb = None
 
 try:
     from dotenv import load_dotenv
@@ -40,6 +45,67 @@ def get_hf_token(raise_error: bool = True) -> Optional[str]:
             )
         return None
     return token.strip()
+
+
+def classify_warehouse_error(e: Exception, token: Optional[str] = None) -> Exception:
+    """
+    Categorize warehouse access errors while guaranteeing zero token disclosure in output strings.
+    """
+    err_raw = str(e)
+    if token:
+        err_raw = err_raw.replace(token, "[REDACTED_HF_TOKEN]")
+
+    err_lower = err_raw.lower()
+
+    if "401" in err_lower or "403" in err_lower or "unauthorized" in err_lower or "forbidden" in err_lower or "access denied" in err_lower:
+        return RuntimeError(
+            f"[ACCESS DENIED]: Hugging Face authentication failed or access to 'FlyRank/internship-warehouse' is not approved.\n"
+            f"Please verify your HF_TOKEN is valid and you have accepted data use terms at https://huggingface.co/datasets/FlyRank/internship-warehouse.\n"
+            f"Details: {err_raw}"
+        )
+    elif "could not resolve host" in err_lower or "connection" in err_lower or "network" in err_lower or "http" in err_lower:
+        return RuntimeError(f"[NETWORK ERROR]: Failed to connect to Hugging Face warehouse. Details: {err_raw}")
+    elif "catalog error" in err_lower or "file not found" in err_lower or "no matching files" in err_lower:
+        return RuntimeError(f"[PATH/SCHEMA NOT FOUND]: Target warehouse dataset file was not found on Hugging Face. Details: {err_raw}")
+    else:
+        return RuntimeError(f"[DUCKDB WAREHOUSE ERROR]: {err_raw}")
+
+
+def create_duckdb_connection_with_hf_auth(token: Optional[str] = None) -> Any:
+    """
+    Create an authenticated DuckDB connection using DuckDB's Secrets Manager & httpfs extension.
+    Never exposes or logs the bearer token.
+    """
+    if duckdb is None:
+        raise ImportError("duckdb is required for Hugging Face warehouse connections. Run: pip install -r requirements.txt")
+
+    if token is None:
+        token = get_hf_token(raise_error=True)
+
+    conn = duckdb.connect()
+
+    # Load httpfs extension
+    try:
+        conn.execute("INSTALL httpfs;")
+    except Exception:
+        pass  # httpfs may be pre-installed or offline cached
+
+    try:
+        conn.execute("LOAD httpfs;")
+    except Exception as e:
+        raise RuntimeError(f"[DUCKDB EXTENSION ERROR]: Failed to load httpfs extension. Details: {e}") from None
+
+    # Create temporary in-memory Hugging Face secret using Secrets Manager API
+    try:
+        conn.execute("CREATE OR REPLACE TEMPORARY SECRET hf_token (TYPE HUGGINGFACE, TOKEN ?);", [token])
+    except Exception:
+        try:
+            # Fallback if parameterized secret statement is unsupported in an older subversion
+            conn.execute(f"CREATE OR REPLACE TEMPORARY SECRET hf_token (TYPE HUGGINGFACE, TOKEN '{token}');")
+        except Exception as e:
+            raise classify_warehouse_error(e, token) from None
+
+    return conn
 
 
 def discover_schema(df: Any) -> Dict[str, Any]:
@@ -127,7 +193,7 @@ def load_dataset(
 ) -> Any:
     """
     Load dataset from path or configured default location.
-    If local path does not exist, attempts HF warehouse connection using HF_TOKEN.
+    Distinguishes local file samples from remote Hugging Face warehouse connections.
     """
     if pd is None:
         raise ImportError("pandas is required to load dataset. Run: pip install -r requirements.txt")
@@ -137,28 +203,29 @@ def load_dataset(
 
     target_path = Path(path if path is not None else config.raw_data_path)
 
+    # 1. Local path check
     if target_path.exists():
         if str(target_path).endswith(".parquet"):
             df = pd.read_parquet(target_path)
         else:
             df = pd.read_csv(target_path)
     else:
-        # Check HF_TOKEN for Hugging Face Warehouse access
+        # 2. Remote Hugging Face Warehouse via DuckDB Secrets Manager
         token = get_hf_token(raise_error=True)
+        conn = create_duckdb_connection_with_hf_auth(token)
+        repo_id = config.schema_mapping.get("hf", {}).get("dataset_repo", "FlyRank/internship-warehouse")
+        
+        # Query remote hf:// dataset path
+        hf_query_path = f"hf://datasets/{repo_id}/*.parquet"
         try:
-            import duckdb
-            repo_id = config.schema_mapping.get("hf", {}).get("dataset_repo", "FlyRank/internship-warehouse")
-            conn = duckdb.connect()
-            conn.execute(f"SET http_headers = {{'Authorization': 'Bearer {token}'}};")
-            # Query gated warehouse parquet files
-            df = conn.execute(f"SELECT * FROM 'hf://datasets/{repo_id}/data/*.parquet' LIMIT 50000").df()
-        except Exception as e:
-            # Mask secret if present in lower-level exception
-            err_str = str(e).replace(token, "[REDACTED_HF_TOKEN]")
-            raise RuntimeError(
-                f"Failed to load dataset from FlyRank warehouse ({err_str}). "
-                f"Ensure HF_TOKEN is valid and access to 'FlyRank/internship-warehouse' is approved."
-            ) from None
+            df = conn.execute(f"SELECT * FROM '{hf_query_path}' LIMIT 50000;").df()
+        except Exception as e1:
+            try:
+                # Fallback path if files are structured in subfolder
+                hf_query_path_sub = f"hf://datasets/{repo_id}/data/*.parquet"
+                df = conn.execute(f"SELECT * FROM '{hf_query_path_sub}' LIMIT 50000;").df()
+            except Exception as e2:
+                raise classify_warehouse_error(e2, token) from None
 
     # Resolve column names per schema mapping
     if config.schema_mapping:

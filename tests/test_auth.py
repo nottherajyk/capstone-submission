@@ -1,12 +1,12 @@
 """
-Tests for Hugging Face authentication, dotenv handling, and secret scanning.
+Tests for Hugging Face authentication, dotenv handling, DuckDB Secrets Manager integration, and secret scanning.
 Uses fake tokens ONLY for unit test assertions.
 """
 
 import os
 import pytest
 
-from src.data import get_hf_token
+from src.data import classify_warehouse_error, create_duckdb_connection_with_hf_auth, get_hf_token
 from src.privacy import assert_public_safe, scan_for_privacy_violations
 
 
@@ -35,17 +35,28 @@ def test_token_never_in_errors(monkeypatch):
     fake_token = "hf_secret12345678901234567890"
     monkeypatch.setenv("HF_TOKEN", fake_token)
 
+    err = classify_warehouse_error(Exception("401 Unauthorized access attempt with " + fake_token), fake_token)
+    err_msg = str(err)
+
+    assert fake_token not in err_msg
+    assert "[REDACTED_HF_TOKEN]" in err_msg or "ACCESS DENIED" in err_msg
+
+
+def test_duckdb_connection_and_secret_creation(monkeypatch):
+    """Test 5 & 6: DuckDB connection initialization and temporary secret creation."""
+    fake_token = "hf_123456789012345678901234567890"
+    monkeypatch.setenv("HF_TOKEN", fake_token)
+
     try:
-        from src.data import load_dataset
-        # Intentional invalid path to trigger error path
-        load_dataset("non_existent_file.csv")
-    except Exception as e:
-        err_msg = str(e)
-        assert fake_token not in err_msg
+        conn = create_duckdb_connection_with_hf_auth(fake_token)
+        assert conn is not None
+        conn.close()
+    except ImportError:
+        pass  # Graceful fallback if duckdb is not installed in current environment
 
 
 def test_secret_scanner_catches_fake_token():
-    """Test 5: Secret scanner catches real-looking fake tokens and redacts output."""
+    """Test 7: Secret scanner catches real-looking fake tokens and redacts output."""
     fake_token_str = "HF_TOKEN=hf_abcdefghijklmnopqrstuvwxyz123456"
     violations = scan_for_privacy_violations(fake_token_str)
 
@@ -58,7 +69,7 @@ def test_secret_scanner_catches_fake_token():
 
 
 def test_secret_scanner_allows_placeholder():
-    """Test 6: Secret scanner allows safe placeholder in .env.example."""
+    """Test 8: Secret scanner allows safe placeholder in .env.example."""
     safe_env_example = "HF_TOKEN=hf_your_token_here"
     violations = scan_for_privacy_violations(safe_env_example)
 

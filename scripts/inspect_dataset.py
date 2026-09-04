@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Dataset discovery and schema inspection utility.
+Dataset discovery and schema inspection utility for FlyRank Capstone.
 Scans the connected dataset to identify columns, dtypes, missingness, cardinality,
 and candidate leakage fields before any downstream modeling is performed.
-Loads local .env and uses HF_TOKEN for Hugging Face authentication.
+Uses DuckDB Secrets Manager (httpfs) for secure Hugging Face warehouse authentication.
 """
 
 import argparse
@@ -22,7 +22,12 @@ except ImportError:
     pass
 
 from src.config import load_config
-from src.data import discover_schema, get_hf_token, load_dataset
+from src.data import (
+    create_duckdb_connection_with_hf_auth,
+    discover_schema,
+    get_hf_token,
+    load_dataset,
+)
 
 
 def main():
@@ -33,14 +38,25 @@ def main():
 
     config = load_config()
     data_path = args.path or config.raw_data_path
+    target_file = Path(data_path)
+    hf_token = get_hf_token(raise_error=False)
 
     print("==================================================")
     print("FLYRANK DATASET DISCOVERY & SCHEMA INSPECTION")
     print("==================================================")
-    print(f"Target dataset path: {data_path}")
 
-    target_file = Path(data_path)
-    hf_token = get_hf_token(raise_error=False)
+    try:
+        import duckdb
+        print(f"DuckDB Version: {duckdb.__version__}")
+    except ImportError:
+        print("DuckDB Version: Not Installed (pip install -r requirements.txt)")
+
+    if target_file.exists():
+        print(f"Source Mode: LOCAL SAMPLE FIXTURE ('{data_path}')")
+        print("Note: Local fixture is used for local sample testing only and is not the full FlyRank warehouse.")
+    else:
+        repo_id = config.schema_mapping.get("hf", {}).get("dataset_repo", "FlyRank/internship-warehouse")
+        print(f"Source Mode: REMOTE WAREHOUSE ('hf://datasets/{repo_id}')")
 
     if not target_file.exists() and not hf_token:
         print(f"\n[STATUS: HF_TOKEN NOT CONFIGURED]")
@@ -52,12 +68,23 @@ def main():
         print(" 3. Re-run: python scripts/inspect_dataset.py\n")
         return 0
 
-    print("Loading dataset (using local file or authenticated Hugging Face connection)...")
+    # Minimal diagnostic authentication check before heavy query
+    if not target_file.exists() and hf_token:
+        print("\nRunning minimal authentication & extension diagnostic...")
+        try:
+            conn = create_duckdb_connection_with_hf_auth(hf_token)
+            print(" -> httpfs extension loaded cleanly.")
+            print(" -> Temporary Hugging Face secret 'hf_token' created in DuckDB Secrets Manager.")
+        except Exception as e:
+            print(f"\n[AUTHENTICATION DIAGNOSTIC FAILED]: {e}")
+            return 1
+
+    print("\nLoading dataset schema and metadata...")
     try:
         df = load_dataset(data_path, config)
-        print(f"Successfully loaded {len(df):,} rows across {len(df.columns)} columns.")
+        print(f"Successfully connected! Discovered {len(df):,} rows across {len(df.columns)} columns.")
     except Exception as e:
-        print(f"\n[ERROR LOADING DATASET]: {e}")
+        print(f"\n{e}")
         return 1
 
     print("\nRunning schema discovery...")

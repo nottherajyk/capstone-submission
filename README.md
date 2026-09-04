@@ -153,7 +153,7 @@ python scripts/validate_repo.py
 
 ## 6. Hugging Face Authentication & Local Setup
 
-The FlyRank warehouse dataset hosted at `FlyRank/internship-warehouse` is gated. Access requires a valid Hugging Face User Access Token (`HF_TOKEN`).
+The FlyRank warehouse dataset hosted at `FlyRank/internship-warehouse` is gated. Access requires a valid Hugging Face User Access Token (`HF_TOKEN`). Authentication is performed dynamically using DuckDB's Secrets Manager (`CREATE SECRET (TYPE HUGGINGFACE)`) over the `httpfs` extension without hardcoded credentials or arbitrary header settings.
 
 > **Security Rule:** Never commit your `HF_TOKEN` or `.env` file to version control. The token must only be supplied via your local environment.
 
