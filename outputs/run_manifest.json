@@ -1,0 +1,20 @@
+{
+  "execution_status": "PENDING_REAL_DATA_RUN",
+  "message": "Empirical results are generated from the configured FlyRank warehouse at execution time.",
+  "timestamp": null,
+  "sample_size": "[PENDING REAL DATA RUN]",
+  "eligible_population": "[PENDING REAL DATA RUN]",
+  "positive_rate": "[PENDING REAL DATA RUN]",
+  "primary_temporal_evaluation": {
+    "baseline_precision_50": "[PENDING REAL DATA RUN]",
+    "model_precision_50": "[PENDING REAL DATA RUN]",
+    "precision_lift_50": "[PENDING REAL DATA RUN]",
+    "baseline_pr_auc": "[PENDING REAL DATA RUN]",
+    "model_pr_auc": "[PENDING REAL DATA RUN]"
+  },
+  "secondary_client_grouped_evaluation": {
+    "baseline_precision_50": "[PENDING REAL DATA RUN]",
+    "model_precision_50": "[PENDING REAL DATA RUN]",
+    "precision_lift_50": "[PENDING REAL DATA RUN]"
+  }
+}

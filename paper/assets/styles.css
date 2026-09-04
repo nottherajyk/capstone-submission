@@ -1,0 +1,295 @@
+/* FlyRank Research Paper Publication Styling */
+:root {
+  --font-serif: "Newsreader", "Charter", "Georgia", serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", Consolas, monospace;
+
+  --bg-primary: #fcfcfd;
+  --bg-surface: #ffffff;
+  --bg-secondary: #f4f4f7;
+  --bg-code: #f1f2f6;
+
+  --text-primary: #18191f;
+  --text-secondary: #4a4d57;
+  --text-muted: #717482;
+  --text-link: #1d4ed8;
+
+  --border-subtle: #e5e7eb;
+  --border-strong: #d1d5db;
+
+  --accent-primary: #1e40af;
+  --accent-secondary: #0369a1;
+  --accent-warn: #b45309;
+  --accent-warn-bg: #fef3c7;
+
+  --pending-badge-bg: #f3f4f6;
+  --pending-badge-text: #4b5563;
+  --pending-badge-border: #d1d5db;
+
+  --container-width: 860px;
+}
+
+[data-theme="dark"] {
+  --bg-primary: #0f1117;
+  --bg-surface: #171923;
+  --bg-secondary: #1e2230;
+  --bg-code: #1a1d29;
+
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-link: #60a5fa;
+
+  --border-subtle: #2d3348;
+  --border-strong: #3f4762;
+
+  --accent-primary: #3b82f6;
+  --accent-secondary: #38bdf8;
+  --accent-warn: #f59e0b;
+  --accent-warn-bg: #292314;
+
+  --pending-badge-bg: #222738;
+  --pending-badge-text: #94a3b8;
+  --pending-badge-border: #3b425b;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  line-height: 1.7;
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+header.paper-header {
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  backdrop-filter: blur(8px);
+}
+
+.header-inner {
+  max-width: var(--container-width);
+  margin: 0 auto;
+  padding: 0.8rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.paper-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent-primary);
+}
+
+.theme-toggle {
+  background: none;
+  border: 1px solid var(--border-subtle);
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+
+main.paper-container {
+  max-width: var(--container-width);
+  margin: 2.5rem auto 5rem auto;
+  padding: 0 1.5rem;
+}
+
+h1.paper-title {
+  font-family: var(--font-serif);
+  font-size: 2.3rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--text-primary);
+  margin-bottom: 1.2rem;
+  letter-spacing: -0.01em;
+}
+
+.authors-block {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+}
+
+.abstract-box {
+  background: var(--bg-secondary);
+  border-left: 4px solid var(--accent-primary);
+  padding: 1.4rem 1.6rem;
+  border-radius: 0 8px 8px 0;
+  margin: 2rem 0;
+}
+
+.abstract-heading {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent-primary);
+  margin-bottom: 0.5rem;
+}
+
+.abstract-text {
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  line-height: 1.65;
+  color: var(--text-primary);
+}
+
+.section-block {
+  margin-top: 3rem;
+}
+
+h2.section-title {
+  font-family: var(--font-serif);
+  font-size: 1.65rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+h3.subsection-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 1.5rem 0 0.6rem 0;
+}
+
+p {
+  margin-bottom: 1.1rem;
+  color: var(--text-secondary);
+}
+
+p strong {
+  color: var(--text-primary);
+}
+
+ul, ol {
+  margin: 0 0 1.2rem 1.5rem;
+  color: var(--text-secondary);
+}
+
+li {
+  margin-bottom: 0.4rem;
+}
+
+.callout-box {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 1.2rem 1.4rem;
+  margin: 1.5rem 0;
+}
+
+.callout-warn {
+  background: var(--accent-warn-bg);
+  border-color: var(--accent-warn);
+}
+
+.pending-pill {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 4px;
+  background: var(--pending-badge-bg);
+  border: 1px solid var(--pending-badge-border);
+  color: var(--pending-badge-text);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.metrics-table-wrapper {
+  overflow-x: auto;
+  margin: 1.8rem 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-surface);
+}
+
+table.paper-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+  text-align: left;
+}
+
+table.paper-table th {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-weight: 600;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-strong);
+}
+
+table.paper-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+}
+
+table.paper-table tr:last-child td {
+  border-bottom: none;
+}
+
+.chart-placeholder {
+  border: 2px dashed var(--border-strong);
+  border-radius: 8px;
+  padding: 3rem 1.5rem;
+  text-align: center;
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  margin: 1.8rem 0;
+}
+
+.chart-placeholder-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+  opacity: 0.7;
+}
+
+.chart-caption {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  text-align: center;
+  margin-top: 0.4rem;
+  font-style: italic;
+}
+
+a {
+  color: var(--text-link);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+footer.paper-footer {
+  border-top: 1px solid var(--border-subtle);
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  background: var(--bg-surface);
+}

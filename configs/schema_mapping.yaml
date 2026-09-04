@@ -1,0 +1,149 @@
+# Schema Mapping and Feature Provenance Registry
+# Generated via scripts/inspect_dataset.py and audited for leakage status
+
+dataset:
+  name: "FlyRank Applied Search Intelligence"
+  inspection_status: "MANUALLY_AUDITED"
+  notes: "Audited schema mapping for content performance records"
+
+identifiers:
+  content_id:
+    canonical: "page_id"
+    aliases: ["url_id", "content_id", "page_hash", "doc_id"]
+    type: "string"
+    is_safe_feature: false
+  client_id:
+    canonical: "client_id"
+    aliases: ["account_id", "tenant_id", "site_id"]
+    type: "string"
+    is_safe_feature: false
+  temporal_date:
+    canonical: "date"
+    aliases: ["observation_date", "period_end", "snapshot_date", "week_end_date"]
+    type: "datetime"
+    is_safe_feature: false
+
+# Raw Performance Metrics expected in source tables
+raw_metrics:
+  clicks:
+    canonical: "clicks"
+    aliases: ["organic_clicks", "gsc_clicks", "click_count"]
+    type: "float"
+  impressions:
+    canonical: "impressions"
+    aliases: ["organic_impressions", "gsc_impressions", "impression_count"]
+    type: "float"
+  ctr:
+    canonical: "ctr"
+    aliases: ["click_through_rate", "avg_ctr"]
+    type: "float"
+  position:
+    canonical: "position"
+    aliases: ["avg_position", "average_position", "rank"]
+    type: "float"
+
+# Blocked Precomputed & Target-Derived Fields (MUST NEVER ENTER FEATURE MATRIX)
+blocked_fields:
+  - name: "trend_direction"
+    reason: "Precomputed outcome label derivative (future leakage)"
+    status: "BLOCKED"
+  - name: "trend_pct"
+    reason: "Precomputed temporal delta encompassing future label window"
+    status: "BLOCKED"
+  - name: "health_score"
+    reason: "Proprietary precomputed downstream health score"
+    status: "BLOCKED"
+  - name: "recommended_action"
+    reason: "Precomputed operational action tag"
+    status: "BLOCKED"
+  - name: "future_clicks"
+    reason: "Direct future observation window measurement"
+    status: "BLOCKED"
+  - name: "future_impressions"
+    reason: "Direct future observation window measurement"
+    status: "BLOCKED"
+  - name: "is_declining_label"
+    reason: "Target variable"
+    status: "BLOCKED"
+
+# Feature Registry with Full Provenance and Leakage Auditing
+features:
+  - feature_name: "log_clicks_lookback"
+    source_table: "search_performance"
+    source_columns: ["clicks"]
+    observation_time_rule: "Aggregated strictly over [T-28, T]"
+    lookback_window: "28d"
+    future_dependency: false
+    target_dependency: false
+    leakage_status: "SAFE"
+    notes: "Log1p transformed click volume to capture scale without outlier skew"
+
+  - feature_name: "log_impressions_lookback"
+    source_table: "search_performance"
+    source_columns: ["impressions"]
+    observation_time_rule: "Aggregated strictly over [T-28, T]"
+    lookback_window: "28d"
+    future_dependency: false
+    target_dependency: false
+    leakage_status: "SAFE"
+    notes: "Log1p transformed impression exposure during observation window"
+
+  - feature_name: "observed_ctr"
+    source_table: "search_performance"
+    source_columns: ["clicks", "impressions"]
+    observation_time_rule: "clicks / max(impressions, 1) over [T-28, T]"
+    lookback_window: "28d"
+    future_dependency: false
+    target_dependency: false
+    leakage_status: "SAFE"
+    notes: "Historical click-through rate ratio"
+
+  - feature_name: "avg_position_lookback"
+    source_table: "search_performance"
+    source_columns: ["position"]
+    observation_time_rule: "Mean search ranking position over [T-28, T]"
+    lookback_window: "28d"
+    future_dependency: false
+    target_dependency: false
+    leakage_status: "SAFE"
+    notes: "Average organic ranking position in Google SERPs"
+
+  - feature_name: "position_momentum_ratio"
+    source_table: "search_performance"
+    source_columns: ["position"]
+    observation_time_rule: "Mean position [T-14, T] divided by Mean position [T-28, T-15]"
+    lookback_window: "28d"
+    future_dependency: false
+    target_dependency: false
+    leakage_status: "SAFE"
+    notes: "Recent position trajectory relative to earlier observation baseline"
+
+  - feature_name: "traffic_velocity_ratio"
+    source_table: "search_performance"
+    source_columns: ["clicks"]
+    observation_time_rule: "Clicks in [T-14, T] divided by Clicks in [T-28, T-15]"
+    lookback_window: "28d"
+    future_dependency: false
+    target_dependency: false
+    leakage_status: "SAFE"
+    notes: "Recent click velocity ratio within historical window"
+
+  - feature_name: "impression_volatility"
+    source_table: "search_performance"
+    source_columns: ["impressions"]
+    observation_time_rule: "Standard deviation of daily impressions in [T-28, T]"
+    lookback_window: "28d"
+    future_dependency: false
+    target_dependency: false
+    leakage_status: "SAFE"
+    notes: "Volatility in search demand exposure"
+
+  - feature_name: "active_day_ratio"
+    source_table: "search_performance"
+    source_columns: ["clicks"]
+    observation_time_rule: "Days with >= 1 click in [T-28, T] divided by 28"
+    lookback_window: "28d"
+    future_dependency: false
+    target_dependency: false
+    leakage_status: "SAFE"
+    notes: "Traffic consistency indicator"

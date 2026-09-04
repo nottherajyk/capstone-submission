@@ -1,0 +1,90 @@
+# FlyRank Capstone Configuration
+project:
+  name: "flyrank-applied-search-intelligence"
+  version: "1.0.0"
+  random_seed: 42
+
+data:
+  # Source can be local file path or DuckDB HF query
+  raw_path: "data/raw/content_refresh_anonymized.csv"
+  processed_dir: "outputs/data"
+  sample_size_limit: null  # null means process all records
+
+label:
+  lookback_days: 28
+  future_horizon_days: 28
+  # Minimum total impressions required during lookback for page eligibility
+  min_lookback_impressions: 100
+  # Minimum total clicks required during lookback for page eligibility
+  min_lookback_clicks: 10
+  # Minimum active days in future window required to assess deterioration
+  min_future_active_days: 14
+  # Percentage drop in organic clicks or impressions defined as deterioration (e.g. 0.20 = 20% drop)
+  click_deterioration_threshold: 0.20
+  # Search position drop threshold (e.g. dropping by >= 2.0 positions)
+  position_deterioration_threshold: 2.0
+  # Strict exclusion rules
+  exclusion_rules:
+    exclude_zero_traffic: true
+    exclude_sparse_history: true
+    exclude_missing_dates: true
+
+validation:
+  # Primary validation: chronological split
+  primary:
+    method: "chronological"
+    train_ratio: 0.60
+    val_ratio: 0.20
+    test_ratio: 0.20
+  # Secondary robustness validation: client-grouped split
+  secondary:
+    method: "client_grouped"
+    n_splits: 5
+    test_size: 0.20
+    group_col: "client_id"
+
+evaluation:
+  k_values: [10, 25, 50, 100]
+  primary_k: 50
+  tie_breaking: "first"
+
+models:
+  baseline:
+    name: "HeuristicRanker"
+    description: "Rule-based score combining historical traffic scale with recent position decay"
+    traffic_weight: 0.6
+    decay_weight: 0.4
+
+  logistic_regression:
+    name: "LogisticRegression"
+    solver: "lbfgs"
+    max_iter: 1000
+    C: 1.0
+    class_weight: "balanced"
+    random_state: 42
+
+  random_forest:
+    name: "RandomForest"
+    n_estimators: 150
+    max_depth: 8
+    min_samples_leaf: 10
+    class_weight: "balanced_subsample"
+    random_state: 42
+    n_jobs: -1
+
+  hist_gradient_boosting:
+    name: "HistGradientBoostingClassifier"
+    max_iter: 100
+    max_depth: 6
+    min_samples_leaf: 20
+    learning_rate: 0.05
+    random_state: 42
+
+recommendations:
+  top_n_queue: 50
+  allowed_actions:
+    - "REVIEW"
+    - "REFRESH_REVIEW"
+    - "MONITOR"
+    - "INVESTIGATE"
+    - "RECOVERY_REVIEW"

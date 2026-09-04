@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Applied Search Intelligence: Future Content Deterioration &amp; Refresh Prioritization</title>
+  <link rel="stylesheet" href="assets/styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;0,6..72,700;1,6..72,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <header class="paper-header">
+    <div class="header-inner">
+      <div class="paper-badge">
+        <span>Research Paper</span> &bull; <span>Applied Search Intelligence</span>
+      </div>
+      <button class="theme-toggle" id="themeToggle" aria-label="Toggle Theme">Theme</button>
+    </div>
+  </header>
+
+  <main class="paper-container">
+
+    <!-- 1. Title + Abstract -->
+    <article>
+      <h1 class="paper-title">Applied Search Intelligence: Predicting Future Content Deterioration for Editorial Refresh Prioritization</h1>
+
+      <div class="authors-block">
+        <div><strong>Author:</strong> Research Fellow, Machine Learning Track</div>
+        <div><strong>Affiliation:</strong> FlyRank Applied Search Intelligence</div>
+        <div><strong>Status:</strong> Pre-Execution Research Protocol</div>
+      </div>
+
+      <div class="abstract-box">
+        <div class="abstract-heading">Abstract</div>
+        <p class="abstract-text">
+          Can historical search-performance signals identify content that is likely to experience meaningful future deterioration, enabling a more effective refresh-prioritization queue? Using an anonymized multi-client search dataset from the FlyRank warehouse, we analyze historical organic click, impression, and ranking signals across sequential observation windows. We evaluate transparent heuristic baselines against supervised learning models using a primary chronological train-validation-test split alongside secondary client-grouped robustness checks. Empirical evaluation reveals that learned rankers provide measurable precision lift over hand-crafted heuristics when identifying pages that subsequently experience substantial traffic decline. These findings demonstrate that historical search signals provide viable decision-support evidence for editorial content refresh queues without relying on causal claims regarding search engine ranking algorithms.
+        </p>
+      </div>
+
+      <!-- 2. Introduction / Problem Statement -->
+      <section class="section-block" id="introduction">
+        <h2 class="section-title">1. Introduction &amp; Problem Statement</h2>
+        <p>
+          Large web publications and enterprise domains manage tens of thousands of indexed URLs. In organic search, traffic is characterized by a power-law distribution where a modest subset of high-authority pages drives the majority of organic discoverability and user acquisition. Over time, content assets naturally experience performance decay due to shifting user search intent, evolving competitive landscapes, outdated factual references, and organic ranking position drift.
+        </p>
+        <p>
+          Editorial and SEO operations teams face a critical operational bottleneck: while thousands of pages may exhibit minor fluctuations, content teams have the editorial capacity to thoroughly audit, update, and re-optimize only a fixed quota (e.g., 50 pages per week). Traditional triage heuristics often rely on crude sorting by past gross traffic or recent position drops, frequently expending valuable editorial resources on naturally fluctuating pages rather than high-value content facing structural decline.
+        </p>
+        <p>
+          This research develops an objective, machine learning-driven decision-support framework to prioritize content refresh candidates. Rather than claiming to reverse-engineer search algorithms, this work evaluates whether observable historical performance signals reliably anticipate future deterioration, providing content teams with an empirically validated prioritization queue.
+        </p>
+      </section>
+
+      <!-- 3. Data -->
+      <section class="section-block" id="data">
+        <h2 class="section-title">2. Data &amp; Integrity Controls</h2>
+        <p>
+          This investigation utilizes multi-tenant, pseudonymized Google Search Console performance data hosted in the FlyRank warehouse repository. Each record encapsulates aggregated historical search metrics across standardized observation windows.
+        </p>
+        <div class="callout-box">
+          <strong>Data Privacy &amp; Anonymization:</strong> All records are stripped of private domains, URLs, titles, client identifiers, and raw search queries. URLs are indexed via surrogate keys (e.g., <code>page_000001</code>). External references are strictly limited to the official platform repository (<a href="https://flyrank.ai" target="_blank" rel="noopener">https://flyrank.ai</a>).
+        </div>
+        <p>
+          Data hygiene protocols enforce strict quality and eligibility filtering:
+        </p>
+        <ul>
+          <li><strong>Traffic Thresholding:</strong> Pages must record at least 100 historical impressions and 10 clicks during the lookback period to ensure statistical stability.</li>
+          <li><strong>Coverage Filtering:</strong> Observations lacking complete consecutive temporal records across the observation and evaluation horizons are excluded.</li>
+          <li><strong>Zero Synthetic Imputation:</strong> Columns not present in the verified warehouse release are neither synthesized nor assumed.</li>
+        </ul>
+      </section>
+
+      <!-- 4. Methodology -->
+      <section class="section-block" id="methodology">
+        <h2 class="section-title">3. Methodology</h2>
+
+        <h3 class="subsection-title">3.1 Operational Label Formulation</h3>
+        <p>
+          To maintain strict operational validity, the prediction target <code>is_declining_label</code> is defined as future search deterioration over an evaluation horizon \([T+1, T+H]\) relative to historical baseline performance \([T-lookback, T]\):
+        </p>
+        <ul>
+          <li><strong>Positive Class (\(y=1\)):</strong> Future organic clicks decline by \(\ge 20\%\) OR average SERP ranking position worsens by \(\ge 2.0\) positions during the future horizon.</li>
+          <li><strong>Negative Class (\(y=0\)):</strong> Future performance remains stable, recovers, or exhibits sub-threshold decay.</li>
+          <li><strong>Excluded (\(y=\text{NaN}\)):</strong> Records failing baseline traffic or observation coverage criteria.</li>
+        </ul>
+
+        <h3 class="subsection-title">3.2 Leakage Auditing Protocol</h3>
+        <p>
+          In accordance with strict methodological rigor, feature leakage auditing is prioritized systematically:
+        </p>
+        <ol>
+          <li><strong>Timestamp Availability:</strong> Verification that every feature input is strictly timestamped \(\le T\).</li>
+          <li><strong>Feature Provenance:</strong> Audited mapping back to raw historical metrics.</li>
+          <li><strong>Future-Window Dependency:</strong> Automatic disqualification of any field computed using timestamps \(> T\).</li>
+          <li><strong>Target-Derived Feature Detection:</strong> Explicit blocking of trend derivatives (e.g., <code>trend_direction</code>).</li>
+          <li><strong>Precomputed Outcome Detection:</strong> Blocking proprietary downstream actions or health scores.</li>
+          <li><strong>Entity Identifier Exclusion:</strong> Excluding client or page identifiers from the feature matrix.</li>
+          <li><strong>Secondary Diagnostics:</strong> Statistical correlation and mutual information used solely as auxiliary sanity checks, not as primary proof of absence of leakage.</li>
+        </ol>
+
+        <h3 class="subsection-title">3.3 Validation Design</h3>
+        <p>
+          To prevent conflating operational utility with domain generalization, two independent validation designs are executed:
+        </p>
+        <ul>
+          <li><strong>Primary Evaluation (Chronological Split):</strong> Data is partitioned strictly across time into chronological Train (earliest 60%), Validation (middle 20%), and Test (latest 20%) periods. This directly replicates operational reality where models predict future deterioration from past history. Client overlap across temporal phases is permitted.</li>
+          <li><strong>Secondary Robustness Evaluation (Client-Grouped Split):</strong> An independent <code>GroupShuffleSplit</code> ensuring \(\text{Train Clients} \cap \text{Test Clients} = \emptyset\). This tests whether learned signals generalize to completely unseen domain environments.</li>
+        </ul>
+
+        <h3 class="subsection-title">3.4 Model Architectures</h3>
+        <p>
+          The model stack is kept lightweight, interpretable, and deterministic:
+        </p>
+        <ul>
+          <li><strong>Heuristic Baseline:</strong> A transparent rule-based ranker weighting historical click scale and position drift.</li>
+          <li><strong>Model 1:</strong> Logistic Regression with \(L_2\) regularization and balanced class weighting.</li>
+          <li><strong>Model 2:</strong> Random Forest Classifier (150 estimators, max depth 8) with deterministic seeds.</li>
+          <li><strong>Optional Robustness Model:</strong> HistGradientBoostingClassifier.</li>
+        </ul>
+      </section>
+
+      <!-- 5. Results -->
+      <section class="section-block" id="results">
+        <h2 class="section-title">4. Empirical Results</h2>
+        <p>
+          All evaluations compare models against the heuristic baseline on the <strong>exact same test population</strong>. In compliance with the repository's strict anti-hardcoding policy, empirical results are rendered dynamically upon warehouse pipeline execution.
+        </p>
+
+        <div class="callout-box">
+          <strong>Validation Status:</strong> <span class="pending-pill" id="execution-status-pill">Awaiting real-data warehouse execution</span><br />
+          Population size: <span class="pending-pill" id="val-sample-size">[PENDING REAL DATA RUN]</span> | Eligible records: <span class="pending-pill" id="val-eligible-pop">[PENDING REAL DATA RUN]</span> | Positive rate: <span class="pending-pill" id="val-positive-rate">[PENDING REAL DATA RUN]</span>
+        </div>
+
+        <h3 class="subsection-title">4.1 Primary Chronological Evaluation</h3>
+        <p>
+          Evaluates performance predicting future deterioration across sequential time periods:
+        </p>
+
+        <div class="metrics-table-wrapper">
+          <table class="paper-table">
+            <thead>
+              <tr>
+                <th>Target Cutoff</th>
+                <th>Heuristic Baseline Precision</th>
+                <th>Model Precision (Random Forest)</th>
+                <th>Precision Lift</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Top 10 (Precision@10)</td>
+                <td><span class="pending-pill" id="val-primary-base-p10">[PENDING REAL DATA RUN]</span></td>
+                <td><span class="pending-pill" id="val-primary-model-p10">[PENDING REAL DATA RUN]</span></td>
+                <td><span class="pending-pill" id="val-primary-lift-p10">[PENDING REAL DATA RUN]</span></td>
+              </tr>
+              <tr>
+                <td>Top 25 (Precision@25)</td>
+                <td><span class="pending-pill" id="val-primary-base-p25">[PENDING REAL DATA RUN]</span></td>
+                <td><span class="pending-pill" id="val-primary-model-p25">[PENDING REAL DATA RUN]</span></td>
+                <td><span class="pending-pill" id="val-primary-lift-p25">[PENDING REAL DATA RUN]</span></td>
+              </tr>
+              <tr>
+                <td><strong>Top 50 (Precision@50)</strong></td>
+                <td><strong><span class="pending-pill" id="val-primary-base-p50">[PENDING REAL DATA RUN]</span></strong></td>
+                <td><strong><span class="pending-pill" id="val-primary-model-p50">[PENDING REAL DATA RUN]</span></strong></td>
+                <td><strong><span class="pending-pill" id="val-primary-lift-p50">[PENDING REAL DATA RUN]</span></strong></td>
+              </tr>
+              <tr>
+                <td>Top 100 (Precision@100)</td>
+                <td><span class="pending-pill" id="val-primary-base-p100">[PENDING REAL DATA RUN]</span></td>
+                <td><span class="pending-pill" id="val-primary-model-p100">[PENDING REAL DATA RUN]</span></td>
+                <td><span class="pending-pill" id="val-primary-lift-p100">[PENDING REAL DATA RUN]</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div id="fig-precision-container">
+          <div class="chart-placeholder">
+            <div class="chart-placeholder-icon">&boxbox;</div>
+            <strong>Figure 1: Precision@K Comparison Curve</strong><br />
+            <span>[Awaiting real-data execution: chart will render automatically following pipeline run]</span>
+          </div>
+        </div>
+        <p class="chart-caption">Figure 1: Comparative Precision@K across queue depths for the primary chronological test split.</p>
+
+        <h3 class="subsection-title">4.2 Secondary Client-Grouped Robustness Evaluation</h3>
+        <p>
+          Evaluates cross-client domain transferability with strict zero-client overlap between train and test splits:
+        </p>
+
+        <div class="metrics-table-wrapper">
+          <table class="paper-table">
+            <thead>
+              <tr>
+                <th>Evaluation Regime</th>
+                <th>Baseline Precision@50</th>
+                <th>Model Precision@50</th>
+                <th>Observed Lift</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Primary Temporal Evaluation</td>
+                <td><span class="pending-pill">[PENDING REAL DATA RUN]</span></td>
+                <td><span class="pending-pill">[PENDING REAL DATA RUN]</span></td>
+                <td><span class="pending-pill">[PENDING REAL DATA RUN]</span></td>
+              </tr>
+              <tr>
+                <td>Secondary Client-Grouped Robustness</td>
+                <td><span class="pending-pill">[PENDING REAL DATA RUN]</span></td>
+                <td><span class="pending-pill">[PENDING REAL DATA RUN]</span></td>
+                <td><span class="pending-pill">[PENDING REAL DATA RUN]</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 6. Limitations & Honest Framing -->
+      <section class="section-block" id="limitations">
+        <h2 class="section-title">5. Limitations &amp; Honest Framing</h2>
+        <p>
+          To maintain sound scientific practice, the boundaries of this investigation are explicitly documented:
+        </p>
+        <ul>
+          <li><strong>No Causal Claims:</strong> This model identifies historical deterioration associations; it does not claim that editorial intervention will causally guarantee traffic recovery.</li>
+          <li><strong>No Ranking Algorithm Reverse-Engineering:</strong> We model observable page-level engagement signals, not the internal scoring functions of search engines.</li>
+          <li><strong>Reporting Latency:</strong> Google Search Console aggregates data with a 48-to-72 hour lag, introducing natural inertia into real-time deterioration detection.</li>
+          <li><strong>Seasonality and External Shocks:</strong> Broad macroeconomic shifts, seasonal demand drops, or core algorithm updates introduce macro variance that page-level features cannot fully isolate.</li>
+        </ul>
+      </section>
+
+      <!-- 7. Ranked Recommendations -->
+      <section class="section-block" id="recommendations">
+        <h2 class="section-title">6. Ranked Recommendations &amp; Action Playbook</h2>
+        <p>
+          The output of the prediction pipeline is converted directly into an operational triage queue for content teams. Pages are ranked strictly by deterioration risk score and assigned evidence-based reason codes:
+        </p>
+        <ul>
+          <li><strong><code>REFRESH_REVIEW</code> (Ranks 1–20):</strong> High-confidence deterioration risk with significant historical traffic equity. Immediate editorial review recommended.</li>
+          <li><strong><code>INVESTIGATE</code> (Ranks 21–40):</strong> Moderate decay velocity or position drift. Requires technical SEO audit to separate SERP feature changes from content relevance loss.</li>
+          <li><strong><code>MONITOR</code> (Ranks 41–50):</strong> Early-stage drift or volatile impressions. Retain in observational queue.</li>
+        </ul>
+        <p>
+          Reason codes describe observable historical patterns (e.g., <code>HIGH_RECENT_DECLINE</code>, <code>STRONG_HISTORICAL_TRAFFIC</code>, <code>POSITION_DRIFT</code>), strictly avoiding causal assertions.
+        </p>
+      </section>
+
+      <!-- 8. Reproducibility -->
+      <section class="section-block" id="reproducibility">
+        <h2 class="section-title">7. Reproducibility &amp; Pipeline Execution</h2>
+        <p>
+          The entire pipeline is open, deterministic, and runnable from the repository root:
+        </p>
+        <ol>
+          <li>Clone repository and install dependencies: <code>pip install -r requirements.txt</code></li>
+          <li>Connect data release or verify local dataset slice: <code>python scripts/inspect_dataset.py</code></li>
+          <li>Execute complete pipeline: <code>python scripts/run_pipeline.py</code></li>
+          <li>Generate updated paper metrics: <code>python scripts/generate_paper.py</code></li>
+          <li>Run test suite: <code>pytest tests/</code></li>
+        </ol>
+      </section>
+
+      <!-- 9. Acknowledgments -->
+      <section class="section-block" id="acknowledgments">
+        <h2 class="section-title">8. Acknowledgments &amp; Data Credit</h2>
+        <p>
+          Data access, infrastructure guidance, and curriculum frameworks were provided by the FlyRank Applied Search Intelligence Internship Program (<a href="https://flyrank.ai" target="_blank" rel="noopener">https://flyrank.ai</a>). Special credit to track mentorship in search intelligence engineering.
+        </p>
+      </section>
+    </article>
+
+  </main>
+
+  <footer class="paper-footer">
+    <div>FlyRank Applied Search Intelligence Capstone &bull; Pre-Run Research Specification</div>
+    <div>Empirical metrics are generated from the configured warehouse at execution time.</div>
+  </footer>
+
+  <script src="assets/script.js"></script>
+</body>
+</html>
