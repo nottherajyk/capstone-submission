@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier
+from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
@@ -20,6 +21,9 @@ from src.leakage import LeakageAuditor
 class ModelPipeline:
     """
     Unified training interface enforcing strict leakage checks prior to model fitting.
+    Implements model-specific missing value imputation only where the underlying estimator
+    requires complete numeric matrices (e.g., Logistic Regression and Random Forest).
+    Imputed values are estimator-internal artifacts and must never be interpreted as real ranks.
     """
 
     def __init__(
@@ -33,6 +37,7 @@ class ModelPipeline:
         self.random_seed = random_seed
         self.hyperparameters = hyperparameters or {}
         self.auditor = LeakageAuditor(feature_registry)
+        self.imputer: Optional[SimpleImputer] = None
         self.scaler: Optional[StandardScaler] = None
         self.model: Any = None
         self.feature_names: list = []
@@ -41,6 +46,8 @@ class ModelPipeline:
 
     def _initialize_model(self) -> None:
         if self.model_type in ["logistic_regression", "lr"]:
+            # LogisticRegression requires dense matrices without NaNs and standardized scale
+            self.imputer = SimpleImputer(strategy="median")
             self.scaler = StandardScaler()
             self.model = LogisticRegression(
                 solver=self.hyperparameters.get("solver", "lbfgs"),
@@ -50,6 +57,8 @@ class ModelPipeline:
                 random_state=self.random_seed,
             )
         elif self.model_type in ["random_forest", "rf"]:
+            # RandomForestClassifier requires dense matrices without NaNs
+            self.imputer = SimpleImputer(strategy="median")
             self.model = RandomForestClassifier(
                 n_estimators=self.hyperparameters.get("n_estimators", 150),
                 max_depth=self.hyperparameters.get("max_depth", 8),
@@ -59,6 +68,9 @@ class ModelPipeline:
                 n_jobs=-1,
             )
         elif self.model_type in ["hist_gradient_boosting", "hgb"]:
+            # HistGradientBoosting natively handles missing values in tree splits;
+            # no pre-imputation required
+            self.imputer = None
             self.model = HistGradientBoostingClassifier(
                 max_iter=self.hyperparameters.get("max_iter", 100),
                 max_depth=self.hyperparameters.get("max_depth", 6),
@@ -72,6 +84,14 @@ class ModelPipeline:
     def fit(self, X: pd.DataFrame, y: pd.Series) -> "ModelPipeline":
         """
         Validate features against leakage audit before training.
+        Applies estimator-internal imputation only where required.
+        
+        CRITICAL IMPUTATION GOVERNANCE:
+        - Imputation is performed ONLY for estimators (LR, RF) that require dense numeric matrices.
+        - The companion `position_available` indicator remains intact in the feature matrix,
+          allowing the model to differentiate between observed positions and imputed entries.
+        - Imputed values are purely numerical fitting artifacts and must NEVER be interpreted
+          as observed search rankings.
         """
         self.feature_names = list(X.columns)
 
@@ -81,20 +101,34 @@ class ModelPipeline:
         clean_y = y.dropna().astype(int)
         clean_X = X.loc[clean_y.index]
 
-        if self.scaler is not None:
-            X_transformed = self.scaler.fit_transform(clean_X)
+        if self.imputer is not None:
+            X_imputed = self.imputer.fit_transform(clean_X)
         else:
-            X_transformed = clean_X.to_numpy()
+            X_imputed = clean_X.to_numpy()
+
+        if self.scaler is not None:
+            X_transformed = self.scaler.fit_transform(X_imputed)
+        else:
+            X_transformed = X_imputed
 
         self.model.fit(X_transformed, clean_y)
         return self
 
     def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
-        """Predict deterioration probability."""
-        if self.scaler is not None:
-            X_transformed = self.scaler.transform(X[self.feature_names])
+        """
+        Predict deterioration probability with model-appropriate imputation.
+        """
+        X_subset = X[self.feature_names]
+
+        if self.imputer is not None:
+            X_imputed = self.imputer.transform(X_subset)
         else:
-            X_transformed = X[self.feature_names].to_numpy()
+            X_imputed = X_subset.to_numpy()
+
+        if self.scaler is not None:
+            X_transformed = self.scaler.transform(X_imputed)
+        else:
+            X_transformed = X_imputed
 
         return self.model.predict_proba(X_transformed)[:, 1]
 

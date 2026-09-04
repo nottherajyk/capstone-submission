@@ -85,8 +85,11 @@ def construct_operational_label(
             is_click_drop = pd.Series(False, index=df.index)
 
     if "future_position" in df.columns and "position" in df.columns:
-        pos_drop = df["future_position"].fillna(20.0) - df["position"].fillna(20.0)
-        is_pos_drop = pos_drop >= config.position_deterioration_threshold
+        # Position deterioration is evaluated strictly when both current and future ranks are observed.
+        # Missing position is preserved as unobserved and never fabricated as rank 20.
+        both_observed = df["future_position"].notnull() & df["position"].notnull()
+        pos_drop = df["future_position"] - df["position"]
+        is_pos_drop = both_observed & (pos_drop >= config.position_deterioration_threshold)
     else:
         is_pos_drop = pd.Series(False, index=df.index)
 

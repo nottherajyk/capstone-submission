@@ -44,13 +44,18 @@ class HeuristicRanker:
             clicks_scaled = clicks_norm
 
         # 2. Position or momentum deterioration component
+        # Never treat missing position as an observed rank of 20.
+        # Use neutral prior 0.5 when position is unavailable/unobserved.
         if "position_momentum_ratio" in df.columns:
-            decay_signal = df["position_momentum_ratio"]
+            decay_signal = df["position_momentum_ratio"].fillna(1.0)
         elif "avg_position_lookback" in df.columns:
-            # Poorer positions indicate higher urgency
-            decay_signal = df["avg_position_lookback"] / 100.0
+            # Observed positions: poorer ranks indicate higher review urgency.
+            # Unobserved positions: neutral signal (0.5), never assumed rank 20.
+            pos_signal = df["avg_position_lookback"] / 100.0
+            decay_signal = pos_signal.fillna(0.5)
         elif "position" in df.columns:
-            decay_signal = df["position"].fillna(20.0) / 100.0
+            pos_signal = df["position"] / 100.0
+            decay_signal = pos_signal.fillna(0.5)
         else:
             decay_signal = pd.Series(0.5, index=df.index)
 

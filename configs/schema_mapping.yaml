@@ -74,8 +74,8 @@ raw_metrics:
     aliases: ["gsc_avg_position", "avg_position", "average_position", "position", "rank"]
     type: "float"
     role: "performance_metric"
-    missingness_treatment: "preserve_or_default_max_rank"
-    notes: "Observed ~79.75% null in raw warehouse. Null indicates lack of rank tracking or zero impressions, NOT rank 0."
+    missingness_treatment: "preserve_with_indicator"
+    notes: "Observed ~79.75% null in raw warehouse. Null indicates lack of rank tracking or zero impressions, NOT rank 0 or 20. Preserved as missing; paired with position_available indicator and imputed strictly inside model estimators."
   gsc_sum_position:
     canonical: "gsc_sum_position"
     aliases: ["gsc_sum_position"]
@@ -183,15 +183,25 @@ features:
     leakage_status: "SAFE"
     notes: "Historical click-through rate ratio"
 
-  - feature_name: "avg_position_lookback"
+  - feature_name: "position_available"
     source_table: "search_performance"
     source_columns: ["position", "gsc_avg_position"]
-    observation_time_rule: "Mean search ranking position over [T-28, T]"
+    observation_time_rule: "Binary indicator: 1.0 if position is observed in [T-28, T], 0.0 if missing/unranked"
     lookback_window: "28d"
     future_dependency: false
     target_dependency: false
     leakage_status: "SAFE"
-    notes: "Average organic ranking position in Google SERPs (default 20.0 for unobserved)"
+    notes: "Distinguishes observed search ranking position from missingness (unranked/no impressions)"
+
+  - feature_name: "avg_position_lookback"
+    source_table: "search_performance"
+    source_columns: ["position", "gsc_avg_position"]
+    observation_time_rule: "Mean search ranking position over [T-28, T] when observed"
+    lookback_window: "28d"
+    future_dependency: false
+    target_dependency: false
+    leakage_status: "SAFE"
+    notes: "Average organic ranking position in Google SERPs. Missing values are preserved directly as NaN and paired with position_available indicator; never treated as an observed rank of 20."
 
   - feature_name: "position_momentum_ratio"
     source_table: "search_performance"
@@ -201,7 +211,7 @@ features:
     future_dependency: false
     target_dependency: false
     leakage_status: "SAFE"
-    notes: "Recent position trajectory relative to earlier observation baseline"
+    notes: "Recent position trajectory relative to earlier observation baseline; neutral 1.0 when position unobserved"
 
   - feature_name: "traffic_velocity_ratio"
     source_table: "search_performance"

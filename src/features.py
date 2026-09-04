@@ -39,10 +39,14 @@ def compute_position_momentum(
     """
     Position momentum ratio: recent_position / baseline_position.
     Values > 1.0 indicate rank deterioration (higher number = worse rank).
+    If either observation window lacks an observed rank, returns neutral momentum (1.0)
+    rather than fabricating an artificial rank of 20.
     """
-    safe_recent = np.maximum(recent_position.fillna(20.0), 1.0)
-    safe_baseline = np.maximum(baseline_position.fillna(20.0), 1.0)
-    arr = np.clip(safe_recent / safe_baseline, 0.1, 10.0)
+    observed_mask = recent_position.notnull() & baseline_position.notnull()
+    safe_recent = np.maximum(recent_position, 1.0)
+    safe_baseline = np.maximum(baseline_position, 1.0)
+    ratio = np.clip(safe_recent / safe_baseline, 0.1, 10.0)
+    arr = np.where(observed_mask, ratio, 1.0)
     return pd.Series(arr, index=recent_position.index, name="position_momentum_ratio")
 
 
@@ -75,7 +79,8 @@ def build_feature_table(
 ) -> Tuple[pd.DataFrame, List[str]]:
     """
     Transform raw search dataset into validated feature matrix.
-    Guarantees non-empty features, no NaNs, and provenance auditing.
+    Preserves missing values for position metrics, includes position_available indicator,
+    and isolates imputation to model training pipelines.
     """
     X = pd.DataFrame(index=df.index)
 
@@ -89,13 +94,17 @@ def build_feature_table(
     elif "gsc_avg_position" in df.columns:
         raw_position = df["gsc_avg_position"]
     else:
-        raw_position = pd.Series(20.0, index=df.index)
+        raw_position = pd.Series(np.nan, index=df.index)
 
     X["log_clicks_lookback"] = compute_log_clicks(raw_clicks)
     X["log_impressions_lookback"] = compute_log_impressions(raw_impressions)
     X["observed_ctr"] = compute_observed_ctr(raw_clicks, raw_impressions)
-    # Missing position implies unranked / zero impression exposure; default to 20.0 (off page 1), never 0.0
-    X["avg_position_lookback"] = raw_position.fillna(20.0).clip(1.0, 100.0)
+    
+    # Position availability indicator (1.0 = observed in GSC, 0.0 = unobserved/unranked)
+    X["position_available"] = raw_position.notnull().astype(float)
+    # Preserve missing values directly as NaN. Never treat missing as an observed rank of 20.
+    # Observed ranks are clipped to valid search rank bounds [1.0, 100.0].
+    X["avg_position_lookback"] = raw_position.clip(1.0, 100.0)
 
     # 2. Trajectory features (if earlier/recent split columns are available, or derived)
     if "recent_clicks" in df.columns and "baseline_clicks" in df.columns:
@@ -126,8 +135,11 @@ def build_feature_table(
     else:
         X["ga4_available_indicator"] = 1.0
 
-    # Ensure no NaNs or Infs remain in output feature table
-    X = X.replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    # Clean infinities; fill non-position features with safe defaults
+    # avg_position_lookback intentionally preserves NaN when position_available == 0.0
+    X = X.replace([np.inf, -np.inf], np.nan)
+    non_position_cols = [c for c in X.columns if c != "avg_position_lookback"]
+    X[non_position_cols] = X[non_position_cols].fillna(0.0)
 
     feature_cols = list(X.columns)
     return X, feature_cols
